@@ -49,14 +49,13 @@
 
 (defmacro defrules
   [rules-name & rules]
-  (binding [*out* *err*] (println "***" (ns-name *ns*)))
-  (let [prods (into {} (map (fn [[rule-name rule]] [rule-name (apply macros/build-rule rule-name rule)])) rules)]
+  (let [prods (into {} (map (fn [[rule-name rule]] [rule-name (add-args-to-production (apply macros/build-rule rule-name rule))])) rules)]
     (swap! productions assoc (symbol (name (ns-name *ns*)) (name rules-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
     `(def ~rules-name ~prods)))
 
 (defmacro defqueries
   [queries-name & queries]
-  (let [prods (into {} (map (fn [[query-name query]] [query-name (apply macros/build-query query-name query)])) queries)]
+  (let [prods (into {} (map (fn [[query-name query]] [query-name (add-args-to-production (apply macros/build-query query-name query))])) queries)]
     (swap! productions assoc (symbol (name (ns-name *ns*)) (name queries-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
     `(def ~queries-name ~prods)))
 
@@ -74,7 +73,7 @@
 (defmacro defsession
   [name sources options]
   (let [prods (vec (vals (names-unique (apply concat (map @productions sources)))))]
-    (binding [*out* *err*] (println "******" #_options #_prods @productions))
+    #_(binding [*out* *err*] (println "******" #_options #_prods @productions))
     `(def ~name ~(macros/productions->session-assembly-form prods options))))
 
 (comment
