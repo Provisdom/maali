@@ -1,6 +1,8 @@
 (ns provisdom.eala-dubh.todo.queries
-  (:require-macros [provisdom.eala-dubh.rules :refer [defqueries]])
-  (:require [clara.rules :refer [insert insert-all retract fire-rules query insert! retract!]]
+  #?(:cljs
+     (:require-macros [provisdom.eala-dubh.rules :refer [defqueries]]))
+  (:require [clara.rules :refer [query]]
+            #?(:clj [provisdom.eala-dubh.rules :refer [defqueries]])
             [provisdom.eala-dubh.todo.facts :as todo]))
 
 (defqueries queries

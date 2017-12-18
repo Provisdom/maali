@@ -1,6 +1,5 @@
 (ns provisdom.eala-dubh.rules
-  (:require [clara.rules :as rules]
-            [clara.rules.compiler :as com]
+  (:require [clara.rules.compiler :as com]
             [clara.macros :as macros]))
 
 (defn compiling-cljs?
@@ -23,6 +22,7 @@
   (if (compiling-cljs?)
     (-> 'cljs.analyzer (find-ns) (ns-resolve '*cljs-ns*) deref)
     nil))
+
 
 (defmacro deffacttype
   [name fields & body]

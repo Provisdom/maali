@@ -60,7 +60,7 @@
            =>
            (println "BAAAAA"))
 
-(defsession poo [rools] {:fact-type-fn session/gettype})
+(defsession poo [provisdom.eala-dubh.todo.app/rools] {:fact-type-fn session/gettype})
 
 #_(defsession poo 'provisdom.eala-dubh.app :fact-type-fn session/gettype)
 

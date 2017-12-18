@@ -1,12 +1,12 @@
 (ns provisdom.eala-dubh.todo.rules
-  (:require-macros [provisdom.eala-dubh.rules :refer [defrules]])
+  #?(:cljs
+     (:require-macros [provisdom.eala-dubh.rules :refer [defrules]]))
   (:require [provisdom.eala-dubh.dom :as dom]
-            [clara.rules :refer [insert insert-all retract fire-rules query insert! retract!]]
+            #?(:clj [provisdom.eala-dubh.rules :refer [defrules]])
+            [clara.rules :refer [insert! retract!]]
             [clara.rules.accumulators :as acc]
-            [provisdom.eala-dubh.session :as session]
             [provisdom.eala-dubh.todo.views :as views]
-            [provisdom.eala-dubh.todo.facts :as facts]
-            [clojure.string :as string]))
+            [provisdom.eala-dubh.todo.facts :as facts]))
 
 (defrules rules
           [::start [[`facts/Start (= ?k session-key)]

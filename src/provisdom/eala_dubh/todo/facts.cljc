@@ -1,6 +1,7 @@
 (ns provisdom.eala-dubh.todo.facts
-  (:require provisdom.eala-dubh.session)
-  (:require-macros [provisdom.eala-dubh.rules :refer [deffacttype]]))
+  #?(:cljs
+     (:require-macros [provisdom.eala-dubh.rules :refer [deffacttype]]))
+  (:require #?(:clj [provisdom.eala-dubh.rules :refer [deffacttype]])))
 
 (deffacttype Start [session-key])
 
