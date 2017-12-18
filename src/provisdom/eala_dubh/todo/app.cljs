@@ -68,9 +68,3 @@
 (-> poo
     (insert (->Foo "foo") (->Foo "bar"))
     (fire-rules))
-
-(defn flrub
-  [x]
-  (:foo x))
-(defmulti fnrop flrub)
-(println "SNURP" ((-dispatch-fn fnrop) {:foo :bar}))

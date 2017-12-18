@@ -1,6 +1,7 @@
 (ns provisdom.eala-dubh.rules
   (:require [clara.rules.compiler :as com]
-            [clara.macros :as macros]))
+            [clara.macros :as macros]
+            [clara.rules]))
 
 (defn compiling-cljs?
   "Return true if we are currently generating cljs code.  Useful because cljx does not
@@ -23,12 +24,14 @@
     (-> 'cljs.analyzer (find-ns) (ns-resolve '*cljs-ns*) deref)
     nil))
 
+(defprotocol TypeInfo
+  (gettype [this]))
 
 (defmacro deffacttype
   [name fields & body]
   `(defrecord ~name
      ~fields
-     ~'provisdom.eala-dubh.session/TypeInfo
+     ~'provisdom.eala-dubh.rules/TypeInfo
      (~'gettype [_#] (symbol ~(str (cljs-ns)) ~(str name)))
      ~@body))
 
@@ -76,7 +79,7 @@
     #_(binding [*out* *err*] (println "******" #_options #_prods @productions))
     `(def ~name ~(macros/productions->session-assembly-form prods options))))
 
-(comment
+#_(comment
   (defmacro defsession
     [name fields & body]
     `(let [session-name# (symbol ~(str (cljs-ns)) ~(str name))]

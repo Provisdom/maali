@@ -5,9 +5,6 @@
             [clara.tools.fact-graph :as fact-graph]
             [cljs.pprint :refer [pprint]]))
 
-(defprotocol TypeInfo
-  (gettype [this]))
-
 (def tx-logs (atom {}))
 (def sessions (atom {}))
 (defn insert-unconditional
