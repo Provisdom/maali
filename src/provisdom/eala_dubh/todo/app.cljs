@@ -3,16 +3,17 @@
   (:require [provisdom.eala-dubh.dom :as dom]
             [clara.rules :refer [insert insert-all retract fire-rules query insert! retract!]]
             [clara.rules.accumulators :as acc]
-            [provisdom.eala-dubh.rules]
+            [provisdom.eala-dubh.rules :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.todo.facts :as f]
             [provisdom.eala-dubh.session :as session]
             [cljs.pprint :refer [pprint]]))
 
 
-#_(enable-console-print!)
+(enable-console-print!)
 
-(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries] {:fact-type-fn provisdom.eala-dubh.rules/gettype})
+(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries]
+  {:fact-type-fn rules/spec-type})
 (def session-key ::session)
 
 (defn reload
@@ -25,10 +26,10 @@
       #_(clara.tools.tracing/with-tracing)
       (session/register session-key)
       (session/insert-unconditional
-        (f/->Start session-key)
-        (f/->Todo 1 "Hi" false false)
-        (f/->Todo 2 "there!" false false)
-        (f/->Visibility :all))
+        (rules/spec-type {::f/session-key session-key} ::f/Start)
+        (rules/spec-type {::f/id 1 ::f/title "Hi" ::f/edit false ::f/done false} ::f/Todo)
+        (rules/spec-type {::f/id 2 ::f/title "there!" ::f/edit false ::f/done false} ::f/Todo)
+        (rules/spec-type {::f/visibility :all} ::f/Visibility) )
 
       (session/fire-rules!))
 
@@ -40,32 +41,3 @@
     #_(aset c "innerHTML" "<p>i'm dynamically created</p>")
     #_(.. js/document (getElementById "container") (appendChild c))
     #_(dom/patch (.getElementById js/document "container") [:div {:id "fooble"} "Foo"])))
-
-(deffacttype Foo [foo])
-
-(defrules rools
-          [::foob [[`Foo [{foo :foo}] (= ?foo foo)]
-                  =>
-                  (println "FOOOOO" ?foo)]]
-          [::baab [[`Foo [{foo :foo}] (= foo "bar")]
-                  =>
-                  (println "BAAAAA")]])
-
-#_(defrule foob
-           [`Foo [{foo :foo}] (= ?foo foo)]
-           =>
-           (println "FOOOOO" ?foo))
-
-#_(defrule baab
-           [`Foo [{foo :foo}] (= foo "bar")]
-           =>
-           (println "BAAAAA"))
-
-(defsession poo [provisdom.eala-dubh.todo.app/rools] {:fact-type-fn provisdom.eala-dubh.rules/gettype})
-
-#_(defsession poo 'provisdom.eala-dubh.app :fact-type-fn session/gettype)
-
-
-(-> poo
-    (insert (->Foo "foo") (->Foo "bar"))
-    (fire-rules))

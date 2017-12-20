@@ -1,34 +1,39 @@
 (ns provisdom.eala-dubh.todo.rules
-  #?(:cljs
-     (:require-macros [provisdom.eala-dubh.rules :refer [defrules]]))
   (:require [provisdom.eala-dubh.dom :as dom]
-            #?(:clj [provisdom.eala-dubh.rules :refer [defrules]])
+    #?(:clj
+            [provisdom.eala-dubh.rules :refer [defrules] :as rules]
+       :cljs [provisdom.eala-dubh.rules :refer-macros [defrules] :as rules])
             [clara.rules :refer [insert! retract!]]
             [clara.rules.accumulators :as acc]
             [provisdom.eala-dubh.todo.views :as views]
             [provisdom.eala-dubh.todo.facts :as facts]))
 
 (defrules rules
-          [::start [[`facts/Start (= ?k session-key)]
+  [::start [[::facts/Start [{session-key ::facts/session-key}] (= ?k session-key)]
+            =>
+            (println "START")
+            (dom/patch (.getElementById js/document "app")
+                       [views/app ?k])]]
+  [::todo-list [[::facts/Start [{session-key ::facts/session-key}] (= ?k session-key)]
+                [?todos <- (acc/all) :from [::facts/Todo]]
+                =>
+                #_(println ?todos)
+                (dom/patch "task-list" (views/task-list ?k (sort-by ::facts/id ?todos) false))]]
+  [::active-count [[?count <- (acc/count) :from [::facts/Todo [{::facts/keys [done]}] (= done false)]]
                    =>
-                   (println "START")
-                   (dom/patch (.getElementById js/document "app")
-                              [views/app ?k])]]
-          [::todo-list [[`facts/Start (= ?k session-key)]
-                       [?todos <- (acc/all) :from [`facts/Todo]]
-                       =>
-                       #_(println ?todos)
-                       (dom/patch "task-list" (views/task-list ?k (sort-by :id ?todos) false))]]
-          [::active-count [[?count <- (acc/count) :from [`facts/Todo (= done false)]]
-                          =>
-                          (insert! (facts/->Active ?count))]]
-          [::total-count [[`facts/Active (= ?a count)]
-                         [`facts/Done (= ?d count)]
-                         =>
-                         (insert! (facts/->Total (+ ?a ?d)))]]
-          [::footer [[`facts/Start (= ?k session-key)]
-                    [`facts/Active (= ?active-count count)]
-                    [`facts/Done (= ?done-count count)]
-                    [`facts/Visibility (= ?visibility visibility)]
-                    =>
-                    (dom/patch "footer" (views/footer ?k ?active-count ?done-count ?visibility))]])
+                   (println "Active" ?count)
+                   (insert! (rules/spec-type {::facts/count ?count} ::facts/Active))]]
+  [::done-count [[?count <- (acc/count) :from [::facts/Todo [{::facts/keys [done]}] (= done true)]]
+                 =>
+                 (insert! (rules/spec-type {::facts/count ?count} ::facts/Done))]]
+  [::total-count [[::facts/Active [{::facts/keys [count]}] (= ?a count)]
+                  [::facts/Done [{::facts/keys [count]}] (= ?d count)]
+                  =>
+                  (println "Total" (+ ?a ?d))
+                  (insert! (rules/spec-type {::facts/count (+ ?a ?d)} ::facts/Total))]]
+  [::footer [[::facts/Start [{::facts/keys [session-key]}] (= ?k session-key)]
+             [::facts/Active [{::facts/keys [count]}] (= ?active-count count)]
+             [::facts/Done [{::facts/keys [count]}] (= ?done-count count)]
+             [::facts/Visibility [{::facts/keys [visibility]}] (= ?visibility visibility)]
+             =>
+             (dom/patch "footer" (views/footer ?k ?active-count ?done-count ?visibility))]])

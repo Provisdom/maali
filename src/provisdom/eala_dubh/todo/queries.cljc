@@ -3,14 +3,13 @@
      (:require-macros [provisdom.eala-dubh.rules :refer [defqueries]]))
   (:require [clara.rules :refer [query]]
             #?(:clj [provisdom.eala-dubh.rules :refer [defqueries]])
-            [provisdom.eala-dubh.todo.facts :as todo])
-  #?(:clj (:import [provisdom.eala-dubh.todo.facts Todo])))
+            [provisdom.eala-dubh.todo.facts :as facts]))
 
 (defqueries queries
             [::todos [[:?id]
-                      [?todo <- #?(:clj Todo :cljs`todo/Todo) [{id :id}] (= ?id id)]]]
+                      [?todo <- ::facts/Todo [{::facts/keys [id]}] (= ?id id)]]]
             [::total [[]
-                      [?total <- #?(:clj Todo :cljs `todo/Total)]]])
+                      [?total <- ::facts/Total]]])
 
 (defn find-todo
   [id session]

@@ -1,7 +1,8 @@
 (ns provisdom.eala-dubh.todo.views
   (:require [provisdom.eala-dubh.session :as session]
             [provisdom.eala-dubh.todo.queries :as todo]
-            [provisdom.eala-dubh.todo.facts :as facts]))
+            [provisdom.eala-dubh.todo.facts :as facts]
+            [provisdom.eala-dubh.rules :as rules]))
 
 (defn then [_])
 (defn subscribe [_])
@@ -11,9 +12,9 @@
   [old-todo session title]
   (if old-todo
     (assoc old-todo :title title :edit false)
-    (let [id (-> (session/query session ::todo/total) first :?total :count)]
+    (let [id (inc (-> (session/query session ::todo/total) first :?total ::facts/count))]
       (println "ID" id)
-      (facts/->Todo id title false false))))
+      (rules/spec-type #::facts{:id id :title title :edit false :done false} ::facts/Todo))))
 
 (defn update-todo
   [session id title]
@@ -24,18 +25,18 @@
 (defn input [props]
   [:input (merge {:type "text" :auto-focus true} props)])
 
-(defn todo-item [session {:keys [id done edit title] :as todo}]
+(defn todo-item [session {::facts/keys [id done edit title] :as todo}]
   [:li {:class (str (when done "completed ") (when edit "editing"))}
    [:div.view {:key id}
     [:input.toggle
      {:type     "checkbox"
       :checked  (if done true false)
       :onchange #(-> session
-                     (session/upsert (partial todo/find-todo id) assoc :done (not done))
+                     (session/upsert (partial todo/find-todo id) assoc ::facts/done (not done))
                      (session/fire-rules!))}]
     [:label
      {:ondblclick #(-> session
-                        (session/upsert (partial todo/find-todo id) assoc :edit title)
+                        (session/upsert (partial todo/find-todo id) assoc ::facts/edit title)
                         (session/fire-rules!))}
 
      title]

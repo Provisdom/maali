@@ -31,6 +31,10 @@
    (defprotocol TypeInfo
      (gettype [this])))
 
+(defn spec-type
+  ([x] (-> x meta ::spec-type))
+  ([x s] (with-meta x {::spec-type s})))
+
 #?(:clj
    (defmacro deffacttype
      [name fields & body]
