@@ -3,15 +3,16 @@
   (:require [provisdom.eala-dubh.dom :as dom]
             [clara.rules :refer [insert insert-all retract fire-rules query insert! retract!]]
             [clara.rules.accumulators :as acc]
+            [provisdom.eala-dubh.rules]
             [provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.todo.facts :as f]
             [provisdom.eala-dubh.session :as session]
             [cljs.pprint :refer [pprint]]))
 
 
-(enable-console-print!)
+#_(enable-console-print!)
 
-(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries] {:fact-type-fn session/gettype})
+(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries] {:fact-type-fn provisdom.eala-dubh.rules/gettype})
 (def session-key ::session)
 
 (defn reload
@@ -60,7 +61,7 @@
            =>
            (println "BAAAAA"))
 
-(defsession poo [provisdom.eala-dubh.todo.app/rools] {:fact-type-fn session/gettype})
+(defsession poo [provisdom.eala-dubh.todo.app/rools] {:fact-type-fn provisdom.eala-dubh.rules/gettype})
 
 #_(defsession poo 'provisdom.eala-dubh.app :fact-type-fn session/gettype)
 

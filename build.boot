@@ -5,11 +5,11 @@
                  [adzerk/boot-cljs-repl     "0.3.3"      :scope "test"]
                  [adzerk/boot-reload        "0.5.2"      :scope "test"]
                  [pandeiro/boot-http        "0.8.3"      :scope "test"]
-                 [com.cemerick/piggieback   "0.2.1"      :scope "test"]
+                 [com.cemerick/piggieback   "0.2.2"      :scope "test"]
                  [org.clojure/tools.nrepl   "0.2.13"     :scope "test"]
                  [weasel                    "0.7.0"      :scope "test"]
                  [org.clojure/clojurescript "1.9.946"]
-                 [binaryage/dirac "1.2.20" :scope "test"]
+                 #_[binaryage/dirac "1.2.20" :scope "test"]
                  [powerlaces/boot-cljs-devtools "0.2.0" :scope "test"]
 
                  [cljsjs/incremental-dom "0.5.2-1"]
@@ -20,7 +20,14 @@
  '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
  '[adzerk.boot-reload    :refer [reload]]
  '[pandeiro.boot-http    :refer [serve]]
- '[powerlaces.boot-cljs-devtools :refer [cljs-devtools dirac]])
+ #_'[powerlaces.boot-cljs-devtools :refer [cljs-devtools dirac]]
+ '[boot.repl])
+
+#_(swap! boot.repl/*default-dependencies*
+       concat '[[com.cemerick/piggieback "0.2.2"][com.cemerick/piggieback "0.2.2"]])
+
+#_(swap! boot.repl/*default-middleware*
+       conj 'cemerick.piggieback/wrap-cljs-repl)
 
 (deftask build
   "This task contains all the necessary steps to produce a build
@@ -41,7 +48,7 @@
         (watch)
         (cljs-repl)
         
-        (dirac)
+        #_(dirac)
         (reload)
         (build)))
 
@@ -50,9 +57,7 @@
   identity)
 
 (deftask development []
-  (task-options! cljs {:optimizations :none
-                       :language-in :ecmascript5
-                       :language-out :ecmascript5}
+  (task-options! cljs {:optimizations :none}
                  reload {:on-jsload 'provisdom.eala-dubh.todo.app/reload})
   identity)
 
