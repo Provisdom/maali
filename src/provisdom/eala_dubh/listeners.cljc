@@ -12,9 +12,11 @@
 
 (declare append-trace)
 
+
 (deftype QueryListener [reactions]
   l/ITransientEventListener
   (left-activate! [listener node tokens]
+    #_(println "NODE" node)
     (when (instance? clara.rules.engine.QueryNode node)
       (let [f (-> node :query :name reactions)
             bindings (mapv :bindings tokens)]
@@ -51,7 +53,7 @@
   (to-persistent! [listener]
     (PersistentQueryListener. reactions)))
 
-(defn- to-query-listener [^PersistentLeftActivateListener listener]
+(defn- to-query-listener [^PersistentQueryListener listener]
   (QueryListener. (.-reactions listener)))
 
 (defn query-listener

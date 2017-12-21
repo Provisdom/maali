@@ -3,7 +3,7 @@
             [clara.rules :refer [insert insert-all retract fire-rules query insert! retract!]]
             [clara.rules.accumulators :as acc]
             [provisdom.eala-dubh.rules :refer-macros [deffacttype defrules defsession] :as rules]
-            [provisdom.eala-dubh.todo.rules :as todo]
+            #_[provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.todo.facts :as f]
             [provisdom.eala-dubh.tracing]
             [provisdom.eala-dubh.listeners]
@@ -14,7 +14,7 @@
 
 (set! (.-onerror js/window) #(pprint %))
 
-(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries]
+#_(defsession s [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.queries/queries]
   {:fact-type-fn rules/spec-type})
 (def session-key ::session)
 
@@ -24,7 +24,7 @@
   #_(session/reload-session :foo))
 
 (defn init []
-  (-> s
+  #_(-> s
       #_(clara.tools.tracing/with-tracing)
       #_(session/register session-key)
       (rules/insert ::f/Start {::f/session s})

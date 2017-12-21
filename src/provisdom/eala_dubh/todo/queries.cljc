@@ -4,11 +4,7 @@
                :cljs [provisdom.eala-dubh.rules :refer-macros [defqueries]])
             [provisdom.eala-dubh.todo.facts :as facts]))
 
-(defqueries queries
-            [::todos [[:?id]
-                      [?todo <- ::facts/Todo [{::facts/keys [id]}] (= ?id id)]]]
-            [::total [[]
-                      [?total <- ::facts/Total]]])
+
 
 (defn find-todo
   [id session]
