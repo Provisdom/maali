@@ -15,16 +15,16 @@
 (deftype TracingListener [trace]
   l/ITransientEventListener
   (left-activate! [listener node tokens]
-    (append-trace listener {:type :left-activate :node-id (:id node) :tokens tokens}))
+    (append-trace listener {:type :left-activate :node node :tokens tokens}))
 
   (left-retract! [listener node tokens]
-    (append-trace listener {:type :left-retract :node-id (:id node) :tokens tokens}))
+    (append-trace listener {:type :left-retract :node node :tokens tokens}))
 
   (right-activate! [listener node elements]
-    (append-trace listener {:type :right-activate :node-id (:id node) :elements elements}))
+    (append-trace listener {:type :right-activate :node node :elements elements}))
 
   (right-retract! [listener node elements]
-    (append-trace listener {:type :right-retract :node-id (:id node) :elements elements}))
+    (append-trace listener {:type :right-retract :node node :elements elements}))
 
   (insert-facts! [listener facts]
     (append-trace listener {:type :add-facts :facts facts}))
@@ -46,25 +46,25 @@
 
   (add-accum-reduced! [listener node join-bindings result fact-bindings]
     (append-trace listener {:type :accum-reduced
-                            :node-id (:id node)
+                            :node node
                             :join-bindings join-bindings
                             :result result
                             :fact-bindings fact-bindings}))
 
   (remove-accum-reduced! [listener node join-bindings fact-bindings]
     (append-trace listener {:type :remove-accum-reduced
-                            :node-id (:id node)
+                            :node node
                             :join-bindings join-bindings
                             :fact-bindings fact-bindings}))
 
   (add-activations! [listener node activations]
-    (append-trace listener {:type :add-activations :node-id (:id node) :tokens (map :token activations)}))
+    (append-trace listener {:type :add-activations :node node :tokens (map :token activations)}))
 
   (remove-activations! [listener node activations]
-    (append-trace listener {:type :remove-activations :node-id (:id node) :activations activations}))
+    (append-trace listener {:type :remove-activations :node node :activations activations}))
 
   (fire-rules! [listener node]
-    (append-trace listener {:type :fire-rules :node-id (:id node)}))
+    (append-trace listener {:type :fire-rules :node node}))
 
   (to-persistent! [listener]
     (PersistentTracingListener. @trace)))

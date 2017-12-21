@@ -3,7 +3,7 @@
             [clara.rules :as rules]
     #?(:clj [clara.macros :as macros])
     #?(:clj [clara.rules.compiler :as com])
-            #?(:cljs [cljs.spec.alpha])))
+    #?(:cljs [cljs.spec.alpha])))
 
 #?(:clj
    (defn compiling-cljs?
@@ -49,6 +49,13 @@
    (def productions (atom {})))
 
 #?(:clj
+   (defn resolve-spec-form
+     [spec-name]
+     (loop [s spec-name]
+       (let [form (@cljs.spec.alpha/registry-ref s)]
+         (if (keyword? form) (recur form) form)))))
+
+#?(:clj
    (defn add-args-to-production
      [production]
      (let [lhs (:lhs production)]
@@ -58,11 +65,17 @@
                       (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
                         (if args
                           constraint
-                          (let [args [{:keys (vec (mapcat (fn [[keys-type keys]]
+                          (let [form (let [f (resolve-spec-form type)]
+                                       (if (and (list? f) (= 'cljs.spec.alpha/keys (first f)))
+                                         f
+                                         (throw (ex-info
+                                                  (str "Fact types must be spec'ed with s/keys: (s/def " type " " (pr-str f) ")")
+                                                  {:type type :form f}))))
+                                args [{:keys (vec (mapcat (fn [[keys-type keys]]
                                                             (if (#{:req-un :opt-un} keys-type)
                                                               (map (comp keyword name) keys)
                                                               keys))
-                                                          (->> (@cljs.spec.alpha/registry-ref type) (drop 1) (partition 2))))}
+                                                          (->> form (drop 1) (partition 2))))}
                                       #_(com/field-name->accessors-used (eval type) constraints)]]
                             (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))))]
          (assoc production :lhs (list 'quote lhs'))))))

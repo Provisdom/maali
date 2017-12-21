@@ -5,10 +5,12 @@
             [provisdom.eala-dubh.rules :refer-macros [deffacttype defrules defsession] :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.todo.facts :as f]
+            [provisdom.eala-dubh.tracing]
+            [provisdom.eala-dubh.listeners]
             [cljs.pprint :refer [pprint]]))
 
 
-(enable-console-print!)
+#_(enable-console-print!)
 
 (set! (.-onerror js/window) #(pprint %))
 
