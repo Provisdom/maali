@@ -3,8 +3,8 @@
     #?(:clj [provisdom.eala-dubh.rules :refer [deffacttype]]
        :cljs [provisdom.eala-dubh.rules :refer-macros [deffacttype]])))
 
-(s/def ::session-key keyword?)
-(s/def ::Start (s/keys :req [::session-key]))
+(s/def ::session-key object?)
+(s/def ::Start (s/keys :req [::session]))
 
 (s/def ::id int?)
 (s/def ::title string?)
@@ -17,5 +17,5 @@
 (s/def ::Done (s/keys :req [::count]))
 (s/def ::Total (s/keys :req [::count]))
 
-(s/def ::visibility string?)
+(s/def ::visibility #{:all :active :completed})
 (s/def ::Visibility (s/keys :req [::visibility]))

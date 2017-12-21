@@ -1,8 +1,7 @@
 (ns provisdom.eala-dubh.todo.queries
-  #?(:cljs
-     (:require-macros [provisdom.eala-dubh.rules :refer [defqueries]]))
-  (:require [clara.rules :refer [query]]
-            #?(:clj [provisdom.eala-dubh.rules :refer [defqueries]])
+  (:require [provisdom.eala-dubh.rules :as rules]
+            #?(:clj [provisdom.eala-dubh.rules :refer [defqueries]]
+               :cljs [provisdom.eala-dubh.rules :refer-macros [defqueries]])
             [provisdom.eala-dubh.todo.facts :as facts]))
 
 (defqueries queries
@@ -13,4 +12,4 @@
 
 (defn find-todo
   [id session]
-  (-> (query session ::todos :?id id) first :?todo))
+  (-> (rules/query session ::todos :?id id) first :?todo))

@@ -1,8 +1,9 @@
 (ns provisdom.eala-dubh.rules
-  #?(:clj
-     (:require [clara.rules.compiler :as com]
-               [clara.macros :as macros]
-               [clara.rules])))
+  (:require [clojure.spec.alpha :as s]
+            [clara.rules :as rules]
+    #?(:clj [clara.macros :as macros])
+    #?(:clj [clara.rules.compiler :as com])
+            #?(:cljs [cljs.spec.alpha])))
 
 #?(:clj
    (defn compiling-cljs?
@@ -57,7 +58,12 @@
                       (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
                         (if args
                           constraint
-                          (let [args [(com/field-name->accessors-used (eval type) constraints)]]
+                          (let [args [{:keys (vec (mapcat (fn [[keys-type keys]]
+                                                            (if (#{:req-un :opt-un} keys-type)
+                                                              (map (comp keyword name) keys)
+                                                              keys))
+                                                          (->> (@cljs.spec.alpha/registry-ref type) (drop 1) (partition 2))))}
+                                      #_(com/field-name->accessors-used (eval type) constraints)]]
                             (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))))]
          (assoc production :lhs (list 'quote lhs'))))))
 
@@ -94,24 +100,33 @@
        #_(binding [*out* *err*] (println "******" #_options #_prods @productions))
        `(def ~name ~(macros/productions->session-assembly-form prods options)))))
 
-#_(comment
-    (defmacro defsession
-      [name fields & body]
-      `(let [session-name# (symbol ~(str (cljs-ns)) ~(str name))]
-         (clara.rules/defsession ~name
-           ~fields
-           ~@body)
-         (swap! 'provisdom.eala-dubh.session/sessions update session-name# ~name)))
+(defn check-and-spec
+  [spec facts]
+  (mapv #(if-let [e (s/explain-data spec %)]
+          (throw (ex-info "Fact failed spec" {:fact % :explanation e}))
+          (spec-type % spec))
+       facts))
 
-    (defmacro defrule
-      [name & body]
-      (let [production (apply macros/build-rule name body)
-            {:keys [lhs rhs]} production]
-        (macros/defrule! name (add-args-to-production production))))
+(defn insert
+  [session spec & facts]
+  (rules/insert-all session (check-and-spec spec facts)))
 
-    (defmacro defqueery
-      [name & body]
-      (let [query (apply macros/build-query name body)
-            lhs (:lhs query)]
-        (macros/defquery! name (add-args-to-production query)))))
+(defn insert!
+  [spec & facts]
+  (rules/insert-all! (check-and-spec spec facts)))
 
+(defn retract
+  [session & facts]
+  (apply rules/retract session facts))
+
+(defn retract!
+  [& facts]
+  (apply rules/retract! facts))
+
+(defn fire-rules
+  [session]
+  (rules/fire-rules session))
+
+(defn query
+  [session query & params]
+  (apply rules/query session query params))

@@ -67,7 +67,7 @@
       [todo-item session todo])]])
 
 
-(defn footer [session active-count done-count visibility-filter]
+(defn footer [_ active-count done-count visibility-filter]
   (let [a-fn (fn [filter-kw txt]
                [:a {:class (when (= filter-kw visibility-filter) "selected")
                     :href  (str "#/" (name filter-kw))}

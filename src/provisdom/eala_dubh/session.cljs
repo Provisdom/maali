@@ -43,7 +43,7 @@
   (let [session (@sessions key)
         s' (fire-rules session)]
     (swap! sessions assoc key (tracing/without-tracing s'))
-    #_(pprint (tracing/get-trace s'))
+    (pprint (tracing/get-trace s'))
     #_(inspect/explain-activations s')
     #_(pprint (fact-graph/session->fact-graph s')))
   key)
