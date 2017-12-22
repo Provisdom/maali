@@ -16,15 +16,13 @@
 (defrules rules)
 
 (defqueries queries
-  [::all-todos
+  [::visible-todos
    []
-   [?todos <- (acc/all) :from [::Todo]]]
-  [::active-todos
-   []
-   [?todos <- (acc/all) :from [::Todo (= done false)]]]
-  [::completed-todos
-   []
-   [?todos <- (acc/all) :from [::Todo (= done true)]]]
+   [::Visibility (= ?visibility visibility)]
+   [?todos <- (acc/all) :from [::Todo (condp = ?visibility
+                                        :active (= done false)
+                                        :completed (= done true)
+                                        :all true)]]]
   [::todo-by-id
    [:?id]
    [?todo <- ::Todo [{::keys [id]}] (= ?id id)]]
@@ -33,4 +31,4 @@
    [?count <- (acc/count) :from [::Todo (= done false)]]]
   [::visibility
    []
-   [::Visibility (= ?visibility visibility)]])
+   [?visibility <- ::Visibility]])
