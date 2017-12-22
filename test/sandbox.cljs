@@ -6,7 +6,7 @@
             [provisdom.eala-dubh.listeners :as listeners]
             [provisdom.eala-dubh.tracing :as tracing]
             [net.cgrand.xforms :as xforms]
-            [cljs.pprint :refer [pprint]]))
+            [provisdom.eala-dubh.pprint :refer-macros [pprint]]))
 
 #_(enable-console-print!)
 
@@ -20,9 +20,9 @@
            [:set :todo-done id1 true]])
 
 (pprint
-  (into []  (map (comp (partial zipmap [:command :bindings]) vector)
-                 cmds
-                 (rest (sequence (comp commands/update-state-xf commands/query-bindings-xf) cmds)))))
+  (into [] (map (comp (partial zipmap [:command :bindings]) vector)
+                cmds
+                (sequence (comp commands/update-state-xf commands/query-bindings-xf) cmds))))
 
 (comment
   (s/def ::a int?)

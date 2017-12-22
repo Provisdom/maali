@@ -41,6 +41,6 @@
 (defsession session [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.rules/queries]
             {:fact-type-fn rules/spec-type})
 
-(def update-state-xf (xforms/reductions update-state session))
+(def update-state-xf (comp (xforms/reductions update-state session) (drop 1)))
 
 (def query-bindings-xf (map listeners/updated-query-bindings))

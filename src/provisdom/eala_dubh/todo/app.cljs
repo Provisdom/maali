@@ -7,7 +7,8 @@
             [provisdom.eala-dubh.todo.commands]
             [provisdom.eala-dubh.tracing]
             [provisdom.eala-dubh.listeners]
-            [cljs.pprint :refer [pprint]]))
+            [cljs.pprint :refer [pprint]]
+            [provisdom.eala-dubh.pprint]))
 
 
 #_(enable-console-print!)
