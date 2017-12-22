@@ -8,8 +8,7 @@
             [provisdom.eala-dubh.listeners]
             [cljs.pprint :refer [pprint]]
             [provisdom.eala-dubh.pprint]
-            [provisdom.eala-dubh.todo.commands.state]
-            [provisdom.eala-dubh.todo.commands.view]))
+            [provisdom.eala-dubh.todo.commands]))
 
 
 #_(enable-console-print!)
