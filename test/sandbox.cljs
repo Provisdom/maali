@@ -6,7 +6,8 @@
             [provisdom.eala-dubh.tracing :as tracing]
             [net.cgrand.xforms :as xforms]
             [provisdom.eala-dubh.pprint :refer-macros [pprint]]
-            [provisdom.eala-dubh.todo.commands.state :as st]))
+            [provisdom.eala-dubh.todo.commands.state :as st]
+            [provisdom.eala-dubh.todo.commands.view :as v]))
 
 #_(enable-console-print!)
 
@@ -30,5 +31,10 @@
   (into [] (map (comp (partial zipmap [:command :bindings]) vector)
                 cmds
                 (sequence (comp st/update-state-xf st/query-bindings-xf) cmds))))
+
+(pprint
+  (into [] (map (comp (partial zipmap [:command :view]) vector)
+                cmds
+                (sequence (comp st/update-state-xf st/query-bindings-xf v/query-result-xf) cmds))))
 
 

@@ -26,7 +26,7 @@
   [::todo-by-id
    [:?id]
    [?todo <- ::Todo [{::keys [id]}] (= ?id id)]]
-  [::todo-count
+  [::active-count
    []
    [?count <- (acc/count) :from [::Todo (= done false)]]]
   [::visibility

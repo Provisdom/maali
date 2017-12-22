@@ -2,43 +2,26 @@
   (:require [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
             [provisdom.eala-dubh.listeners :as listeners]
             [provisdom.eala-dubh.todo.rules :as todo]
-            [net.cgrand.xforms :as xforms]))
-
-(defmulti handle-state-command (fn [session command] (vec (take 2 command))))
-
-(defmethod handle-state-command [::insert :todo]
-  [session [_ _ todo]]
-  (rules/insert session ::todo/Todo todo))
-
-(defmethod handle-state-command [::insert-many :todos]
-  [session [_ _ todos]]
-  (apply rules/insert session ::todo/Todo todos))
+            [net.cgrand.xforms :as xforms]
+            [cljs.core.match :refer-macros [match]]))
 
 (defn find-todo
   [id session]
   (-> (rules/query session ::todo/todo-by-id :?id id) first :?todo))
 
-(defmethod handle-state-command [::retract :todo]
-  [session [_ _ id]]
-  (let [todo (find-todo id session)]
-    (rules/retract session todo)))
-
-(defmethod handle-state-command [::retract-many :todos]
-  [session [_ _ ids]]
-  (let [todos (map #(find-todo % session) ids)]
-    (apply rules/retract session todos)))
-
-(defmethod handle-state-command [::update :todo]
-  [session [_ _ id attrs]]
-  (rules/update session ::todo/Todo (partial find-todo id) merge attrs))
-
 (defn find-visibility
   [session]
   (-> (rules/query session ::todo/visibility) first :?visibility))
 
-(defmethod handle-state-command [::update :visibility]
-  [session [_ _ visibility]]
-  (rules/update session ::todo/Visibility find-visibility assoc ::todo/visibility visibility))
+(defn handle-state-command
+  [session command]
+  (match command
+         [::insert :todo todo] (rules/insert session ::todo/Todo todo)
+         [::insert-many :todos todos] (apply rules/insert session ::todo/Todo todos)
+         [::retract :todo id] (rules/retract session (find-todo id session))
+         [::retract-many :todos todos] (apply rules/retract session (map #(find-todo % session) todos))
+         [::update :todo id attrs] (rules/update session ::todo/Todo (partial find-todo id) merge attrs)
+         [::update :visibility visibility] (rules/update session ::todo/Visibility find-visibility assoc ::todo/visibility visibility)))
 
 (defn update-state
   [session command]
