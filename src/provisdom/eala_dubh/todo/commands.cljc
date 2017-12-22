@@ -41,9 +41,10 @@
 (defn query-result->command
   [binding-map-entry]
   (match binding-map-entry
-         [::todo/visible-todos todos] [:render :todo-list (-> todos first :?todos)]
+         [::todo/visible-todos todos] [:render :todo-list (->> todos first :?todos (sort-by ::todo/timestamp))]
          [::todo/visibility visibility] [:render :visibility (-> visibility first :?visibility ::todo/visibility)]
          [::todo/active-count count] [:render :active-count (-> count first :?count)]
+         [::todo/completed-count count] [:render :completed-count (-> count first :?count)]
          :else [::no-op]))
 
 (def query-result-xf (map #(map query-result->command %)))

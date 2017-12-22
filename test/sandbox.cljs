@@ -13,19 +13,19 @@
 (defsession session [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
-(def id1 (random-uuid))
-(def id2 (random-uuid))
-(def id3 (random-uuid))
+(def td1 (todo/new-todo "Hi"))
+(def td2 (todo/new-todo "there"))
+(def td3 (todo/new-todo "Hi!"))
+(def td4 (todo/new-todo "FOO!"))
 (def cmds [[:init session]
-           [:insert-many :todos [#::todo{:id id1 :title "Hi" :edit false :done false}
-                                 #::todo{:id id2 :title "there!" :edit false :done false}]]
+           [:insert-many :todos [td1 td2]]
            [:update :visibility :all]
-           [:update :todo id1 {::todo/done true}]
+           [:update :todo (::todo/id td1) {::todo/done true}]
            [:update :visibility :active]
-           [:retract :todo id1]
-           [:insert-many :todos [#::todo{:id id1 :title "Hi" :edit false :done false}
-                                 #::todo{:id id3 :title "FOO!" :edit false :done false}]]
-           [:retract-many :todos [id1 id2 id3]]])
+           [:retract :todo (::todo/id td1)]
+           [:insert-many :todos [td3 td4]]
+           [:retract-many :todos [(::todo/id td2) (::todo/id td3) (::todo/id td4)]]
+           [:update :visibility :all]])
 
 (pprint
   (into [] (map (comp (partial zipmap [:command :bindings]) vector)

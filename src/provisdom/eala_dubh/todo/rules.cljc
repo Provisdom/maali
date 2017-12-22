@@ -4,7 +4,7 @@
        :cljs [provisdom.eala-dubh.rules :refer-macros [defrules defqueries] :as rules])
             [clara.rules.accumulators :as acc]))
 
-(s/def ::id uuid?)
+(s/def ::id int?)
 (s/def ::title string?)
 (s/def ::edit boolean?)
 (s/def ::done boolean?)
@@ -12,6 +12,12 @@
 
 (s/def ::visibility #{:all :active :completed})
 (s/def ::Visibility (s/keys :req [::visibility]))
+
+(def id (atom 0))
+
+(defn new-todo
+  [title]
+  #::{:id (swap! id inc) :title title :done false :edit false})
 
 (defrules rules)
 
@@ -29,6 +35,9 @@
   [::active-count
    []
    [?count <- (acc/count) :from [::Todo (= done false)]]]
+  [::completed-count
+   []
+   [?count <- (acc/count) :from [::Todo (= done true)]]]
   [::visibility
    []
    [?visibility <- ::Visibility]])

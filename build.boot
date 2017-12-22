@@ -15,7 +15,8 @@
                  [cljsjs/incremental-dom "0.5.2-1"]
                  [com.cerner/clara-rules "0.17.0-SNAPSHOT"]
                  [net.cgrand/xforms "0.15.0"]
-                 [org.clojure/core.match "0.3.0-alpha5"]])
+                 [org.clojure/core.match "0.3.0-alpha5"]
+                 [reagent "0.8.0-alpha2"]])
 
 (require
  '[adzerk.boot-cljs      :refer [cljs]]
