@@ -13,7 +13,8 @@
                  [powerlaces/boot-cljs-devtools "0.2.0" :scope "test"]
 
                  [cljsjs/incremental-dom "0.5.2-1"]
-                 [com.cerner/clara-rules "0.17.0-SNAPSHOT"]])
+                 [com.cerner/clara-rules "0.17.0-SNAPSHOT"]
+                 [net.cgrand/xforms "0.15.0"]])
 
 (require
  '[adzerk.boot-cljs      :refer [cljs]]

@@ -83,14 +83,14 @@
 #?(:clj
    (defmacro defrules
      [rules-name & rules]
-     (let [prods (into {} (map (fn [[rule-name rule]] [rule-name (add-args-to-production (apply macros/build-rule rule-name rule))])) rules)]
+     (let [prods (into {} (map (fn [[rule-name & rule]] [rule-name (add-args-to-production (apply macros/build-rule rule-name rule))])) rules)]
        (swap! productions assoc (symbol (name (ns-name *ns*)) (name rules-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
        `(def ~rules-name ~prods))))
 
 #?(:clj
    (defmacro defqueries
      [queries-name & queries]
-     (let [prods (into {} (map (fn [[query-name query]] [query-name (add-args-to-production (apply macros/build-query query-name query))])) queries)]
+     (let [prods (into {} (map (fn [[query-name & query]] [query-name (add-args-to-production (apply macros/build-query query-name query))])) queries)]
        (swap! productions assoc (symbol (name (ns-name *ns*)) (name queries-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
        `(def ~queries-name ~prods))))
 
@@ -135,6 +135,14 @@
 (defn retract!
   [& facts]
   (apply rules/retract! facts))
+
+(defn update
+  [session spec query-fn f & args]
+  (let [item (query-fn session)
+        new-item (when f (apply f item args))]
+    (cond-> session
+            item (retract item)
+            new-item (insert spec new-item))))
 
 (defn fire-rules
   [session]

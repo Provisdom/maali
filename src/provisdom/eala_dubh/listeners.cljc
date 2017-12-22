@@ -5,22 +5,21 @@
 
 (declare to-query-listener)
 
-(deftype PersistentQueryListener [reactions]
+(deftype PersistentQueryListener [query-bindings]
   l/IPersistentEventListener
   (to-transient [listener]
     (to-query-listener listener)))
 
 (declare append-trace)
 
-
-(deftype QueryListener [reactions]
+(deftype QueryListener [query-bindings]
   l/ITransientEventListener
   (left-activate! [listener node tokens]
     #_(println "NODE" node)
     (when (instance? clara.rules.engine.QueryNode node)
-      (let [f (-> node :query :name reactions)
+      (let [name (-> node :query :name)
             bindings (mapv :bindings tokens)]
-        (when f (f bindings)))))
+        (swap! query-bindings assoc name bindings))))
 
   (left-retract! [listener node tokens])
 
@@ -51,40 +50,52 @@
   (fire-rules! [listener node])
 
   (to-persistent! [listener]
-    (PersistentQueryListener. reactions)))
+    (PersistentQueryListener. query-bindings)))
 
 (defn- to-query-listener [^PersistentQueryListener listener]
-  (QueryListener. (.-reactions listener)))
+  (QueryListener. (.-query_bindings listener)))
 
 (defn query-listener
   "Creates a persistent tracing event listener"
-  [reactions]
-  (PersistentQueryListener. reactions))
+  []
+  (PersistentQueryListener. (atom {})))
+
+(defn updated-query-bindings
+  [session]
+  (if-let [listener (->> (eng/components session)
+                         :listeners
+                         (filter #(instance? PersistentQueryListener %) )
+                         (first))]
+    @(.-query_bindings ^PersistentQueryListener listener)
+    nil #_(throw (ex-info "No tracing listener attached to session." {:session session})))
+  )
 
 (defn is-listening?
   "Returns true if the given session has tracing enabled, false otherwise."
-  [session listener]
+  [session listener-type]
   (let [{:keys [listeners]} (eng/components session)]
-    (boolean (some #(= (type %) (type listener)) listeners))))
+    (boolean (some #(= (type %) listener-type) listeners))))
 
 (defn with-listener
   "Returns a new session identical to the given one, but with tracing enabled.
    The given session is returned unmodified if tracing is already enabled."
-  [session listener]
-  (if (is-listening? session listener)
-    session
-    (let [{:keys [listeners] :as components} (eng/components session)]
-      (eng/assemble (assoc components
-                      :listeners
-                      (conj listeners listener))))))
+  [session listener-fn]
+  (let [listener (listener-fn)]
+    (if (is-listening? session (type listener))
+      session
+      (let [{:keys [listeners] :as components} (eng/components session)]
+        (eng/assemble (assoc components
+                        :listeners
+                        (conj listeners listener)))))))
 
-(defn without-listening
+(defn without-listener
   "Returns a new session identical to the given one, but with tracing disabled
    The given session is returned unmodified if tracing is already disabled."
-  [session listener]
-  (if (is-listening? session listener)
-    (let [{:keys [listeners] :as components} (eng/components session)]
-      (eng/assemble (assoc components
-                      :listeners
-                      (remove #(= (type %) (type listener)) listeners))))
-    session))
+  [session listener-fn]
+  (let [listener (listener-fn)]
+    (if (is-listening? session (type listener))
+      (let [{:keys [listeners] :as components} (eng/components session)]
+        (eng/assemble (assoc components
+                        :listeners
+                        (remove #(= (type %) (type listener)) listeners))))
+      session)))
