@@ -1,8 +1,10 @@
 (ns provisdom.eala-dubh.rules
   (:require [clojure.spec.alpha :as s]
             [clara.rules :as rules]
-    #?(:clj [clara.macros :as macros])
-    #?(:clj [clara.rules.compiler :as com])
+    #?(:clj
+            [clara.macros :as macros])
+    #?(:clj
+            [clara.rules.compiler :as com])
     #?(:cljs [cljs.spec.alpha])))
 
 #?(:clj
@@ -63,7 +65,7 @@
              lhs' (vec
                     (for [constraint elhs]
                       (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
-                        (if args
+                        (if (or args (not (contains? c :type)))
                           constraint
                           (let [form (let [f (resolve-spec-form type)]
                                        (if (and (list? f) (= 'cljs.spec.alpha/keys (first f)))
@@ -116,9 +118,11 @@
 (defn check-and-spec
   [spec facts]
   (mapv #(if-let [e (s/explain-data spec %)]
-          (throw (ex-info "Fact failed spec" {:fact % :explanation e}))
-          (spec-type % spec))
-       facts))
+           (do
+             #?(:cljs (cljs.pprint/pprint e))
+             (throw (ex-info "Fact failed spec" {:fact % :explanation e})))
+           (spec-type % spec))
+        facts))
 
 (defn insert
   [session spec & facts]
@@ -128,21 +132,40 @@
   [spec & facts]
   (rules/insert-all! (check-and-spec spec facts)))
 
+(defn insert-unconditional!
+  [spec & facts]
+  (rules/insert-all-unconditional! (check-and-spec spec facts)))
+
 (defn retract
-  [session & facts]
-  (apply rules/retract session facts))
+  [session f & facts]
+  (let [facts (if (fn? f) (f session) (cons f facts))]
+    (apply rules/retract session facts)))
 
 (defn retract!
   [& facts]
   (apply rules/retract! facts))
 
-(defn update
+(defn upsert
   [session spec query-fn f & args]
-  (let [item (query-fn session)
-        new-item (when f (apply f item args))]
-    (cond-> session
-            item (retract item)
-            new-item (insert spec new-item))))
+  (let [items (query-fn session)
+        new-items (when f (map #(apply f % args) items))
+        s (if (not-empty items) (apply retract session items) session)
+        s' (if (not-empty new-items) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
+    s'))
+
+(defn upsert!
+  ([spec fact]
+   (insert! spec fact))
+  ([spec fact f & args]
+   (retract! fact)
+   (insert! spec (apply f fact args))))
+
+(defn upsert-unconditional!
+  ([spec fact]
+   (insert! spec fact))
+  ([spec fact f & args]
+   (retract! fact)
+   (insert-unconditional! spec (apply f fact args))))
 
 (defn fire-rules
   [session]

@@ -3,26 +3,32 @@
             [provisdom.eala-dubh.listeners :as listeners]
             [provisdom.eala-dubh.todo.rules :as todo]
             [net.cgrand.xforms :as xforms]
-            [cljs.core.match :refer-macros [match]]))
+            [cljs.core.match :refer-macros [match]]
+            [clara.tools.inspect :as inspect]))
 
-(defn find-todo
-  [id session]
-  (-> (rules/query session ::todo/todo-by-id :?id id) first :?todo))
-
-(defn find-visibility
-  [session]
-  (-> (rules/query session ::todo/visibility) first :?visibility))
+(defn query-result-fn
+  [query map-fn & args]
+  (fn [session]
+    (mapv map-fn (apply rules/query session query args))))
 
 (defn handle-state-command
   [session command]
   (match command
-         [:init init-session] init-session
+         [:init init-session] (-> init-session
+                                  (rules/insert ::todo/Visibility {::todo/visibility :all})
+                                  (rules/fire-rules))
          [:insert :todo todo] (rules/insert session ::todo/Todo todo)
          [:insert-many :todos todos] (apply rules/insert session ::todo/Todo todos)
-         [:retract :todo id] (rules/retract session (find-todo id session))
-         [:retract-many :todos todos] (apply rules/retract session (map #(find-todo % session) todos))
-         [:update :todo id attrs] (rules/update session ::todo/Todo (partial find-todo id) merge attrs)
-         [:update :visibility visibility] (rules/update session ::todo/Visibility find-visibility assoc ::todo/visibility visibility)))
+         [:retract :todo id] (rules/retract session (query-result-fn ::todo/todo-by-id :?todo :?id id))
+         [:retract-completed :todos] (rules/retract session (query-result-fn ::todo/completed-todos :?todo))
+         [:update :todo id attrs] (rules/upsert session ::todo/Todo (query-result-fn ::todo/todo-by-id :?todo :?id id)
+                                                merge attrs)
+         [:update :visibility visibility] (rules/upsert session ::todo/Visibility
+                                                        (query-result-fn ::todo/visibility :?visibility)
+                                                        assoc ::todo/visibility visibility)
+         [:complete-all :todos done] (rules/upsert session ::todo/Todo
+                                                   (query-result-fn (if done ::todo/active-todos ::todo/completed-todos) :?todo)
+                                                   assoc ::todo/done done)))
 
 (defn update-state
   [session command]
@@ -41,10 +47,12 @@
 (defn query-result->command
   [binding-map-entry]
   (match binding-map-entry
-         [::todo/visible-todos todos] [:render :todo-list (->> todos first :?todos (sort-by ::todo/timestamp))]
+         [::todo/visible-todos todos] [:render :todo-list (->> todos first :?todos (sort-by ::todo/id))]
          [::todo/visibility visibility] [:render :visibility (-> visibility first :?visibility ::todo/visibility)]
          [::todo/active-count count] [:render :active-count (-> count first :?count)]
          [::todo/completed-count count] [:render :completed-count (-> count first :?count)]
+         [::todo/all-completed all-completed] [:render :all-completed (-> all-completed first :?all-completed ::todo/all-completed)]
+         [::todo/show-clear show-clear] [:render :show-clear (-> show-clear first :?show-clear ::todo/show-clear)]
          :else [::no-op]))
 
 (def query-result-xf (map #(map query-result->command %)))

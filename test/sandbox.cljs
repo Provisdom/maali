@@ -19,13 +19,10 @@
 (def td4 (todo/new-todo "FOO!"))
 (def cmds [[:init session]
            [:insert-many :todos [td1 td2]]
-           [:update :visibility :all]
            [:update :todo (::todo/id td1) {::todo/done true}]
-           [:update :visibility :active]
-           [:retract :todo (::todo/id td1)]
-           [:insert-many :todos [td3 td4]]
-           [:retract-many :todos [(::todo/id td2) (::todo/id td3) (::todo/id td4)]]
-           [:update :visibility :all]])
+           [:update :todo (::todo/id td2) {::todo/done true}]
+           [:retract-completed :todos]
+           [:insert-many :todos [td3 td4]]])
 
 (pprint
   (into [] (map (comp (partial zipmap [:command :bindings]) vector)

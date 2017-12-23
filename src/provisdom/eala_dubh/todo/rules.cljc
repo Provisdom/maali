@@ -13,13 +13,34 @@
 (s/def ::visibility #{:all :active :completed})
 (s/def ::Visibility (s/keys :req [::visibility]))
 
-(def id (atom 0))
+(s/def ::count (s/or :zero zero? :pos pos-int?))
+(s/def ::Active (s/keys :req [::count]))
+(s/def ::Completed (s/keys :req [::count]))
+
+(s/def ::all-completed boolean?)
+(s/def ::All-Completed (s/keys :req [::all-completed]))
+
+(s/def ::show-clear boolean?)
+(s/def ::Show-Clear (s/keys :req [::show-clear]))
+
+(def next-id (atom 0))
 
 (defn new-todo
   [title]
-  #::{:id (swap! id inc) :title title :done false :edit false})
+  #::{:id (swap! next-id inc) :title title :done false :edit false})
 
-(defrules rules)
+(defrules rules
+  [::active-count!
+   [?count <- (acc/count) :from [::Todo (= done false)]]
+   =>
+   (rules/insert! ::Active {::count ?count})
+   (rules/insert! ::All-Completed {::all-completed (= 0 ?count)})]
+  [::completed-count!
+   [?count <- (acc/count) :from [::Todo (= done true)]]
+   =>
+   (rules/insert! ::Completed {::count ?count})
+   (rules/insert! ::Show-Clear {::show-clear (not= 0 ?count)})]
+  )
 
 (defqueries queries
   [::visible-todos
@@ -29,15 +50,27 @@
                                         :active (= done false)
                                         :completed (= done true)
                                         :all true)]]]
+  [::completed-todos
+   []
+   [?todo <- ::Todo (= done true)]]
+  [::active-todos
+   []
+   [?todo <- ::Todo (= done false)]]
   [::todo-by-id
    [:?id]
-   [?todo <- ::Todo [{::keys [id]}] (= ?id id)]]
+   [?todo <- ::Todo (= ?id id)]]
   [::active-count
    []
-   [?count <- (acc/count) :from [::Todo (= done false)]]]
+   [::Active (= ?count count)]]
   [::completed-count
    []
-   [?count <- (acc/count) :from [::Todo (= done true)]]]
+   [::Completed (= ?count count)]]
   [::visibility
    []
-   [?visibility <- ::Visibility]])
+   [?visibility <- ::Visibility]]
+  [::all-completed
+   []
+   [?all-completed <- ::All-Completed]]
+  [::show-clear
+   []
+   [?show-clear <- ::Show-Clear]])

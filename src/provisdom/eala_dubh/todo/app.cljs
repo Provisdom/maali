@@ -9,10 +9,12 @@
             [cljs.pprint :refer [pprint]]
             [provisdom.eala-dubh.pprint]
             [provisdom.eala-dubh.todo.commands :as commands]
-            [provisdom.eala-dubh.todo.view :as view]))
+            [provisdom.eala-dubh.todo.view :as view]
+            [provisdom.eala-dubh.todo.intents :as intents]
+            [clojure.core.async :as async]))
 
 
-(enable-console-print!)
+#_(enable-console-print!)
 
 (set! (.-onerror js/window) #(do
                                (println "FAARK!!!!!!!!!!!!!!!!!")
@@ -29,15 +31,20 @@
 
 (defn init []
   (let [init-cmds [[:init session]
+                   [:update :visibility :all]
                    [:insert-many :todos [(todo/new-todo "Rename Cloact to Reagent")
                                          (todo/new-todo "Add undo demo")
                                          (todo/new-todo "Make all rendering async")
-                                         (todo/new-todo "Allow any arguments to component functions")]]
-                   [:update :visibility :all]]
+                                         (todo/new-todo "Allow any arguments to component functions")]]]
         xf (comp commands/update-state-xf
                  commands/query-bindings-xf
-                 commands/query-result-xf
-                 (map view/update-view))]
-    (into [] xf init-cmds)
-    (view/run))
+                 commands/query-result-xf)
+        view-ch (async/chan 1 xf)]
+    (async/pipe intents/intent-ch view-ch)
+    (view/run)
+    (async/go-loop [commands (async/<! view-ch)]
+                   (when commands
+                     (view/update-view commands)
+                     (recur (async/<! view-ch))))
+    (async/onto-chan intents/intent-ch init-cmds false))
   (println "AWWWWDUNN!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"))

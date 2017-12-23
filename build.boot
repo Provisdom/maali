@@ -16,7 +16,9 @@
                  [com.cerner/clara-rules "0.17.0-SNAPSHOT"]
                  [net.cgrand/xforms "0.15.0"]
                  [org.clojure/core.match "0.3.0-alpha5"]
-                 [reagent "0.8.0-alpha2"]])
+                 [reagent "0.8.0-alpha2"]
+                 [prismatic/dommy "1.1.0"]
+                 [org.clojure/core.async "0.3.465"]])
 
 (require
  '[adzerk.boot-cljs      :refer [cljs]]
