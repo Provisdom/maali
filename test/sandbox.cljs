@@ -1,14 +1,9 @@
 (ns sandbox.foo
   (:require [provisdom.eala-dubh.rules :refer-macros [defrules defqueries defsession] :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
-            [clojure.spec.alpha :as s]
             [provisdom.eala-dubh.listeners :as listeners]
-            [provisdom.eala-dubh.tracing :as tracing]
-            [net.cgrand.xforms :as xforms]
             [provisdom.eala-dubh.pprint :refer-macros [pprint]]
             [provisdom.eala-dubh.todo.commands :as commands]))
-
-#_(enable-console-print!)
 
 (defsession session [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
@@ -27,11 +22,11 @@
 (pprint
   (into [] (map (comp (partial zipmap [:command :bindings]) vector)
                 cmds
-                (sequence (comp commands/update-state-xf commands/query-bindings-xf) cmds))))
+                (sequence (comp commands/update-state-xf listeners/query-bindings-xf) cmds))))
 
 (pprint
   (into [] (map (comp (partial zipmap [:command :view]) vector)
                 cmds
-                (sequence (comp commands/update-state-xf commands/query-bindings-xf commands/query-result-xf) cmds))))
+                (sequence (comp commands/update-state-xf listeners/query-bindings-xf commands/query-result-xf) cmds))))
 
 

@@ -1,7 +1,9 @@
 (ns provisdom.eala-dubh.tracing
   "Support for tracing state changes in a Clara session."
   (:require [clara.rules.listener :as l]
-            [clara.rules.engine :as eng]))
+            [clara.rules.engine :as eng]
+    #?(:clj [clojure.pprint :refer [pprint]])
+    #?(:cljs [cljs.pprint :refer [pprint]])))
 
 (declare to-tracing-listener)
 
@@ -119,3 +121,13 @@
                          (first))]
     (.-trace ^PersistentTracingListener listener)
     nil #_(throw (ex-info "No tracing listener attached to session." {:session session}))))
+
+(defn trace
+  [session]
+  (when session
+    (with-tracing session)))
+
+(defn print-trace
+  [session]
+  (pprint (get-trace session))
+  (without-tracing session))

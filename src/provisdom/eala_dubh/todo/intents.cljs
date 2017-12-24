@@ -1,6 +1,5 @@
 (ns provisdom.eala-dubh.todo.intents
-  (:require [clojure.core.async :as async]
-            [dommy.core :refer-macros [sel sel1] :as dommy]))
+  (:require [clojure.core.async :as async]))
 
 (defonce intent-ch (async/chan))
 

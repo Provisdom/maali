@@ -1,10 +1,8 @@
 (ns provisdom.eala-dubh.rules
   (:require [clojure.spec.alpha :as s]
             [clara.rules :as rules]
-    #?(:clj
-            [clara.macros :as macros])
-    #?(:clj
-            [clara.rules.compiler :as com])
+    #?(:clj [clara.macros :as macros])
+    #?(:clj [clara.rules.compiler :as com])
     #?(:cljs [cljs.spec.alpha])))
 
 #?(:clj
@@ -174,3 +172,9 @@
 (defn query
   [session query & params]
   (apply rules/query session query params))
+
+(defn query-fn
+  "Returns a function that will apply a query and map the results via map-fn."
+  [query map-fn & args]
+  (fn [session]
+    (mapv map-fn (apply rules/query session query args))))

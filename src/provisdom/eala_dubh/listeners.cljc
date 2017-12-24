@@ -1,27 +1,26 @@
 (ns provisdom.eala-dubh.listeners
   "Support for tracing state changes in a Clara session."
   (:require [clara.rules.listener :as l]
-            [clara.rules.engine :as eng]))
+            [clara.rules.engine :as eng]
+            [provisdom.eala-dubh.rules :as rules]
+            [provisdom.eala-dubh.tracing :as tracing]))
 
 (declare to-query-listener)
 
-(deftype PersistentQueryListener [query-bindings]
+(deftype PersistentQueryListener [activations retractions]
   l/IPersistentEventListener
   (to-transient [listener]
     (to-query-listener listener)))
 
-(declare append-trace)
+(declare append-bindings!)
 
-(deftype QueryListener [query-bindings]
+(deftype QueryListener [activations retractions]
   l/ITransientEventListener
   (left-activate! [listener node tokens]
-    #_(println "NODE" node)
-    (when (instance? clara.rules.engine.QueryNode node)
-      (let [name (-> node :query :name)
-            bindings (mapv :bindings tokens)]
-        (swap! query-bindings assoc name bindings))))
+    (append-bindings! activations node tokens))
 
-  (left-retract! [listener node tokens])
+  (left-retract! [listener node tokens]
+    (append-bindings! retractions node tokens))
 
   (right-activate! [listener node elements])
 
@@ -50,23 +49,34 @@
   (fire-rules! [listener node])
 
   (to-persistent! [listener]
-    (PersistentQueryListener. query-bindings)))
+    (PersistentQueryListener. activations retractions)))
+
+(defn- append-bindings!
+  [query-bindings node tokens]
+  (when (instance? clara.rules.engine.QueryNode node)
+    (let [name (-> node :query :name)
+          bindings (mapv :bindings tokens)]
+      (swap! query-bindings assoc name bindings))))
 
 (defn- to-query-listener [^PersistentQueryListener listener]
-  (QueryListener. (.-query_bindings listener)))
+  (QueryListener. (.-activations listener) (.-retractions listener)))
 
 (defn query-listener
   "Creates a persistent tracing event listener"
   []
-  (PersistentQueryListener. (atom {})))
+  (PersistentQueryListener. (atom {}) (atom {})))
 
-(defn updated-query-bindings
+(defn updated-query-results
   [session]
   (if-let [listener (->> (eng/components session)
                          :listeners
                          (filter #(instance? PersistentQueryListener %) )
                          (first))]
-    @(.-query_bindings ^PersistentQueryListener listener)
+    ;;;Look at all of the activations and retractions for queries, and collect new query results for any
+    ;;;queries that changed. Note that this is fast - queries have already been executed, we're just getting the
+    ;;;results.
+    (into {} (map (fn [[k _]] [k (rules/query session k)]))
+          (concat @(.-activations ^PersistentQueryListener listener) @(.-retractions ^PersistentQueryListener listener)))
     nil #_(throw (ex-info "No tracing listener attached to session." {:session session})))
   )
 
@@ -99,3 +109,29 @@
                         :listeners
                         (remove #(= (type %) (type listener)) listeners))))
       session)))
+
+(defn update-with-query-listener-fn
+  "Updates a session by applying command-fn to the command, and handles
+   query-listener so query bindings resulting from command can be tracked."
+  [command-fn]
+  (fn [session command]
+    (if session
+      (-> session
+          (without-listener query-listener)
+          (with-listener query-listener)
+          (command-fn command)
+          (rules/fire-rules))
+      ;;; Allows for initialization command
+      (command-fn nil command))))
+
+(defn debug-update-with-query-listener-fn
+  [command-fn]
+  (let [qfn (update-with-query-listener-fn command-fn)]
+    (fn [session command]
+      (-> session
+          tracing/trace
+          (qfn command)
+          tracing/print-trace))))
+
+;;; Transducer for fetching query bindings from a reductions stream, used in conjunction with update-session-with-query-listener.
+(def query-bindings-xf (map updated-query-results))
