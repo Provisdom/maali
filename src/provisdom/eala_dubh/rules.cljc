@@ -110,7 +110,6 @@
    (defmacro defsession
      [name sources options]
      (let [prods (vec (vals (names-unique (apply concat (map @productions sources)))))]
-       #_(binding [*out* *err*] (println "******" #_options #_prods @productions))
        `(def ~name ~(macros/productions->session-assembly-form prods options)))))
 
 (defn check-and-spec

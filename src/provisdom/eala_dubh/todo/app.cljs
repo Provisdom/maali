@@ -24,23 +24,28 @@
 (defsession session [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
+(def xf (comp commands/update-state-xf
+              listeners/query-bindings-xf
+              commands/query-result-xf))
+(def debug-xf (comp commands/debug-update-state-xf
+                    listeners/query-bindings-xf
+                    commands/query-result-xf))
+(defonce command-ch (async/chan 1 xf))
+(defonce view-ch (async/chan 1))
+
+(def init-cmds [[:init session]
+                [:insert-many :todos [(todo/new-todo "Rename Cloact to Reagent")
+                                      (todo/new-todo "Add undo demo")
+                                      (todo/new-todo "Make all rendering async")
+                                      (todo/new-todo "Allow any arguments to component functions")]]])
+
+(async/pipe view/intent-ch command-ch)
+(async/pipe command-ch view-ch)
+
 (defn init []
-  (let [init-cmds [[:init session]
-                   [:insert-many :todos [(todo/new-todo "Rename Cloact to Reagent")
-                                         (todo/new-todo "Add undo demo")
-                                         (todo/new-todo "Make all rendering async")
-                                         (todo/new-todo "Allow any arguments to component functions")]]]
-        xf (comp commands/update-state-xf
-                 listeners/query-bindings-xf
-                 commands/query-result-xf)
-        debug-xf (comp commands/debug-update-state-xf
-                       listeners/query-bindings-xf
-                       commands/query-result-xf)
-        view-ch (async/chan 1 xf)]
-    (async/pipe view/intent-ch view-ch)
-    (view/run)
-    (async/go-loop [commands (async/<! view-ch)]
-                   (when commands
-                     (view/update-view commands)
-                     (recur (async/<! view-ch))))
-    (async/onto-chan view/intent-ch init-cmds false)))
+  (view/run)
+  (async/go-loop [commands (async/<! view-ch)]
+                 (when commands
+                   (view/update-view commands)
+                   (recur (async/<! view-ch))))
+  (async/onto-chan view/intent-ch init-cmds false))
