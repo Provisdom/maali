@@ -2,10 +2,11 @@
   (:require [reagent.core :as r]
             [cljs.core.match :refer-macros [match]]
             [provisdom.eala-dubh.todo.rules :as todo]
-            [provisdom.eala-dubh.todo.intents :as intents]
-            [clojure.core.async :as async]))
+            
+            [clojure.core.async :as async :refer [put!]]))
 
 (defonce view-state (r/atom {}))
+(defonce intent-ch (async/chan))
 
 (defn update-view
   [commands]
@@ -37,7 +38,7 @@
 (defn todo-stats [{:keys [visibility active-count completed-count show-clear]}]
   (let [props-for (fn [name]
                     {:class    (if (= name visibility) "selected")
-                     :on-click #(intents/dispatch [:update :visibility name])})]
+                     :on-click #(put! intent-ch [:update :visibility name])})]
     [:div
      [:span#todo-count
       [:strong active-count] " " (case active-count 1 "item" "items") " left"]
@@ -46,7 +47,7 @@
       [:li [:a (props-for :active) "Active"]]
       [:li [:a (props-for :completed) "Completed"]]]
      (when show-clear
-       [:button#clear-completed {:on-click #(intents/dispatch [:retract-completed :todos])}
+       [:button#clear-completed {:on-click #(put! intent-ch [:retract-completed :todos])}
         "Clear completed " completed-count])]))
 
 (defn todo-item []
@@ -55,13 +56,13 @@
                       (if edit "editing"))}
      [:div.view
       [:input.toggle {:type      "checkbox" :checked done
-                      :on-change #(intents/dispatch [:update :todo id {::todo/done (not done)}])}]
-      [:label {:on-double-click #(intents/dispatch [:update :todo id {::todo/edit true}])} title]
-      [:button.destroy {:on-click #(intents/dispatch [:retract :todo id])}]]
+                      :on-change #(put! intent-ch [:update :todo id {::todo/done (not done)}])}]
+      [:label {:on-double-click #(put! intent-ch [:update :todo id {::todo/edit true}])} title]
+      [:button.destroy {:on-click #(put! intent-ch [:retract :todo id])}]]
      (when edit
        [todo-edit {:class   "edit" :title title
-                   :on-save #(intents/dispatch [:update :todo id {::todo/title %}])
-                   :on-stop #(intents/dispatch [:update :todo id {::todo/edit false}])}])]))
+                   :on-save #(put! intent-ch [:update :todo id {::todo/title %}])
+                   :on-stop #(put! intent-ch [:update :todo id {::todo/edit false}])}])]))
 
 (defn todo-app [props]
   (fn []
@@ -72,12 +73,12 @@
          [:h1 "todos"]
          [todo-input {:id          "new-todo"
                       :placeholder "What needs to be done?"
-                      :on-save     #(intents/dispatch [:insert :todo (todo/new-todo %)])}]]
+                      :on-save     #(put! intent-ch [:insert :todo (todo/new-todo %)])}]]
         [:div
          (when (-> todo-list count pos?)
            [:section#main
             [:input#toggle-all {:type      "checkbox" :checked all-completed
-                                :on-change #(intents/dispatch [:complete-all :todos (not all-completed)])}]
+                                :on-change #(put! intent-ch [:complete-all :todos (not all-completed)])}]
             [:label {:for "toggle-all"} "Mark all as complete"]
             [:ul#todo-list
              (for [todo todo-list]

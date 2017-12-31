@@ -5,7 +5,6 @@
             [provisdom.eala-dubh.pprint]
             [provisdom.eala-dubh.todo.commands :as commands]
             [provisdom.eala-dubh.todo.view :as view]
-            [provisdom.eala-dubh.todo.intents :as intents]
             [clojure.core.async :as async]
             [cljs.pprint :refer [pprint]]))
 
@@ -38,10 +37,10 @@
                        listeners/query-bindings-xf
                        commands/query-result-xf)
         view-ch (async/chan 1 xf)]
-    (async/pipe intents/intent-ch view-ch)
+    (async/pipe view/intent-ch view-ch)
     (view/run)
     (async/go-loop [commands (async/<! view-ch)]
                    (when commands
                      (view/update-view commands)
                      (recur (async/<! view-ch))))
-    (async/onto-chan intents/intent-ch init-cmds false)))
+    (async/onto-chan view/intent-ch init-cmds false)))

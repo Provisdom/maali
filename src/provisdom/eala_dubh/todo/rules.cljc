@@ -55,26 +55,18 @@
                       :completed (= done true)
                       :all true)]]
 
-  [::completed-todos []
-   [?todo <- ::Todo (= done true)]]
+  [::completed-todos [] [?todo <- ::Todo (= done true)]]
 
-  [::active-todos []
-   [?todo <- ::Todo (= done false)]]
+  [::active-todos [] [?todo <- ::Todo (= done false)]]
 
-  [::todo-by-id [:?id]
-   [?todo <- ::Todo (= ?id id)]]
+  [::todo-by-id [:?id] [?todo <- ::Todo (= ?id id)]]
 
-  [::active-count []
-   [::Active (= ?count count)]]
+  [::active-count [] [::Active (= ?count count)]]
 
-  [::completed-count []
-   [::Completed (= ?count count)]]
+  [::completed-count [] [::Completed (= ?count count)]]
 
-  [::visibility []
-   [?visibility <- ::Visibility]]
+  [::visibility [] [?visibility <- ::Visibility]]
 
-  [::all-completed []
-   [::All-Completed (= ?all-completed all-completed)]]
+  [::all-completed [] [::All-Completed (= ?all-completed all-completed)]]
 
-  [::show-clear []
-   [::Show-Clear (= ?show-clear show-clear)]])
+  [::show-clear [] [::Show-Clear (= ?show-clear show-clear)]])
