@@ -1,0 +1,23 @@
+(ns provisdom.eala-dubh.todo.specs
+  (:require [clojure.spec.alpha :as s]))
+
+;;; Fact specs. Use convention that specs for fact "types" are camel-cased.
+(s/def ::id int?)
+(s/def ::title string?)
+(s/def ::edit boolean?)
+(s/def ::done boolean?)
+(s/def ::Todo (s/keys :req [::id ::title ::edit ::done]))
+
+(s/def ::visibility #{:all :active :completed})
+(s/def ::Visibility (s/keys :req [::visibility]))
+
+(s/def ::count (s/or :zero zero? :pos pos-int?))
+(s/def ::Active (s/keys :req [::count]))
+(s/def ::Completed (s/keys :req [::count]))
+
+(s/def ::all-completed boolean?)
+(s/def ::All-Completed (s/keys :req [::all-completed]))
+
+(s/def ::show-clear boolean?)
+(s/def ::Show-Clear (s/keys :req [::show-clear]))
+

@@ -2,7 +2,7 @@
   (:require [reagent.core :as r]
             [cljs.core.match :refer-macros [match]]
             [provisdom.eala-dubh.todo.rules :as todo]
-            
+            [provisdom.eala-dubh.todo.specs :as specs]
             [clojure.core.async :as async :refer [put!]]))
 
 (defonce view-state (r/atom {}))
@@ -51,18 +51,18 @@
         "Clear completed " completed-count])]))
 
 (defn todo-item []
-  (fn [{::todo/keys [id done edit title]}]
+  (fn [{::specs/keys [id done edit title]}]
     [:li {:class (str (if done "completed ")
                       (if edit "editing"))}
      [:div.view
       [:input.toggle {:type      "checkbox" :checked done
-                      :on-change #(put! intent-ch [:update :todo id {::todo/done (not done)}])}]
-      [:label {:on-double-click #(put! intent-ch [:update :todo id {::todo/edit true}])} title]
+                      :on-change #(put! intent-ch [:update :todo id {::specs/done (not done)}])}]
+      [:label {:on-double-click #(put! intent-ch [:update :todo id {::specs/edit true}])} title]
       [:button.destroy {:on-click #(put! intent-ch [:retract :todo id])}]]
      (when edit
        [todo-edit {:class   "edit" :title title
-                   :on-save #(put! intent-ch [:update :todo id {::todo/title %}])
-                   :on-stop #(put! intent-ch [:update :todo id {::todo/edit false}])}])]))
+                   :on-save #(put! intent-ch [:update :todo id {::specs/title %}])
+                   :on-stop #(put! intent-ch [:update :todo id {::specs/edit false}])}])]))
 
 (defn todo-app [props]
   (fn []
@@ -82,7 +82,7 @@
             [:label {:for "toggle-all"} "Mark all as complete"]
             [:ul#todo-list
              (for [todo todo-list]
-               ^{:key (::todo/id todo)} [todo-item todo])]])
+               ^{:key (::specs/id todo)} [todo-item todo])]])
          [:footer#footer
           [todo-stats vs]]]]
        [:footer#info
