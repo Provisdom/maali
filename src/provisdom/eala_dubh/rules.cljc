@@ -1,9 +1,11 @@
 (ns provisdom.eala-dubh.rules
   (:require [clojure.spec.alpha :as s]
             [clara.rules :as rules]
+            [clara.rules.engine]
     #?(:clj [clara.macros :as macros])
     #?(:clj [clara.rules.compiler :as com])
-    #?(:cljs [cljs.spec.alpha])))
+    #?(:cljs [cljs.spec.alpha]))
+  #?(:clj (:import [clara.rules.engine LocalSession])))
 
 #?(:clj
    (defn compiling-cljs?
@@ -19,6 +21,14 @@
            ;; that dependency.
            #_(require 'clara.macros)
            @v)))))
+
+#?(:clj
+   (defmacro rel-ns [k]
+     `(alias ~k (create-ns (symbol (str ns "." (str ~k)))))))
+
+(defn session?
+  [x]
+  (instance? clara.rules.engine.LocalSession x))
 
 #?(:clj
    (defn cljs-ns

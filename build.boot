@@ -14,8 +14,8 @@
 
                  [com.cerner/clara-rules "0.17.0-SNAPSHOT"]
                  [net.cgrand/xforms "0.15.0"]
-                 [org.clojure/core.match "0.3.0-alpha5"]
                  [lambdaisland/uniontypes "0.3.0"]
+                 [org.clojure/test.check "0.9.0"]
                  [reagent "0.8.0-alpha2"]
                  [org.clojure/core.async "0.3.465"]])
 

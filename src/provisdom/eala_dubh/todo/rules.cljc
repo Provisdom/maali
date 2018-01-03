@@ -27,6 +27,32 @@
    (rules/insert! ::specs/Show-Clear {::specs/show-clear (not= 0 ?count)})]
   )
 
+;;; Query result specs
+(s/def ::?id ::specs/id)
+(s/def ::?todo ::specs/Todo)
+(s/def ::?visibility ::specs/Visibility)
+(s/def ::?count ::specs/count)
+(s/def ::?all-completed ::specs/all-completed)
+(s/def ::?show-clear ::specs/show-clear)
+(s/def ::todo-by-id (s/cat :query #{::todo-by-id} :result (s/coll-of (s/keys :req-un [::?id ::?todo]))))
+(s/def ::completed-todos (s/cat :query #{::completed-todos} :result (s/coll-of (s/keys :req-un [::?todo]))))
+(s/def ::active-todos (s/cat :query #{::active-todos} :result (s/coll-of (s/keys :req-un [::?todo]))))
+(s/def ::visible-todos (s/cat :query #{::visible-todos} :result (s/coll-of (s/keys :req-un [::?todo]))))
+(s/def ::active-count (s/cat :query #{::active-count} :result (s/coll-of (s/keys :req-un [::?count]))))
+(s/def ::completed-count (s/cat :query #{::completed-count} :result (s/coll-of (s/keys :req-un [::?count]))))
+(s/def ::visibility (s/cat :query #{::visibility} :result (s/coll-of (s/keys :req-un [::?visibility]))))
+(s/def ::all-completed (s/cat :query #{::all-completed} :result (s/coll-of (s/keys :req-un [::?all-completed]))))
+(s/def ::show-clear (s/cat :query #{::show-clear} :result (s/coll-of (s/keys :req-un [::?show-clear]))))
+
+(s/def ::query-result (s/or ::visible-todos ::visible-todos
+                            ::completed-todos ::completed-todos
+                            ::active-todos ::active-todos
+                            ::todo-by-id ::todo-by-id
+                            ::active-count ::active-count
+                            ::completed-count ::completed-count
+                            ::visibility ::visibility
+                            ::all-completed ::all-completed
+                            ::show-clear ::show-clear))
 ;;; Queries
 (defqueries queries
   [::visible-todos []
