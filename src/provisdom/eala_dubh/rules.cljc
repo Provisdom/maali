@@ -91,17 +91,22 @@
          (assoc production :lhs (list 'quote lhs'))))))
 
 #?(:clj
+   (defn build-prods
+     [defs-name defs build-fn]
+     (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (apply build-fn name def))])) defs)]
+       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
+       prods)))
+
+#?(:clj
    (defmacro defrules
      [rules-name & rules]
-     (let [prods (into {} (map (fn [[rule-name & rule]] [rule-name (add-args-to-production (apply macros/build-rule rule-name rule))])) rules)]
-       (swap! productions assoc (symbol (name (ns-name *ns*)) (name rules-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
+     (let [prods (build-prods rules-name rules macros/build-rule)]
        `(def ~rules-name ~prods))))
 
 #?(:clj
    (defmacro defqueries
      [queries-name & queries]
-     (let [prods (into {} (map (fn [[query-name & query]] [query-name (add-args-to-production (apply macros/build-query query-name query))])) queries)]
-       (swap! productions assoc (symbol (name (ns-name *ns*)) (name queries-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
+     (let [prods (build-prods queries-name queries macros/build-query)]
        `(def ~queries-name ~prods))))
 
 #?(:clj

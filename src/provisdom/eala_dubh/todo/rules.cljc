@@ -26,6 +26,34 @@
    (rules/insert! ::specs/Show-Clear {::specs/show-clear (not= 0 ?count)})]
   )
 
+;;; Queries
+(defqueries queries
+  [::visible-todos []
+   [::specs/Visibility (= ?visibility visibility)]
+   [?todo <- ::specs/Todo (condp = ?visibility
+                      :active (= done false)
+                      :completed (= done true)
+                      :all true)]]
+
+  [::completed-todos [] [?todo <- ::specs/Todo (= done true)]]
+
+  [::active-todos [] [?todo <- ::specs/Todo (= done false)]]
+
+  [::todo-by-id [:?id] [?todo <- ::specs/Todo (= ?id id)]]
+
+  [::active-count [] [::specs/Active (= ?count count)]]
+
+  [::completed-count [] [::specs/Completed (= ?count count)]]
+
+  [::visibility [] [?visibility <- ::specs/Visibility]]
+
+  [::all-completed [] [::specs/All-Completed (= ?all-completed all-completed)]]
+
+  [::show-clear [] [::specs/Show-Clear (= ?show-clear show-clear)]])
+
+(enable-console-print!)
+(cljs.pprint/pprint queries)
+
 ;;; Query result specs
 (s/def ::?id ::specs/id)
 (s/def ::?todo ::specs/Todo)
@@ -52,27 +80,3 @@
                             ::visibility ::visibility
                             ::all-completed ::all-completed
                             ::show-clear ::show-clear))
-;;; Queries
-(defqueries queries
-  [::visible-todos []
-   [::specs/Visibility (= ?visibility visibility)]
-   [?todo <- ::specs/Todo (condp = ?visibility
-                      :active (= done false)
-                      :completed (= done true)
-                      :all true)]]
-
-  [::completed-todos [] [?todo <- ::specs/Todo (= done true)]]
-
-  [::active-todos [] [?todo <- ::specs/Todo (= done false)]]
-
-  [::todo-by-id [:?id] [?todo <- ::specs/Todo (= ?id id)]]
-
-  [::active-count [] [::specs/Active (= ?count count)]]
-
-  [::completed-count [] [::specs/Completed (= ?count count)]]
-
-  [::visibility [] [?visibility <- ::specs/Visibility]]
-
-  [::all-completed [] [::specs/All-Completed (= ?all-completed all-completed)]]
-
-  [::show-clear [] [::specs/Show-Clear (= ?show-clear show-clear)]])
