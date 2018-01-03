@@ -1,11 +1,11 @@
 (ns provisdom.eala-dubh.todo.view
-  (:require [reagent.core :as r]
+  (:require [cljs.core.async :as async :refer [put!]]
+            [cljs.spec.alpha :as s]
+            [reagent.core :as r]
+            [lambdaisland.uniontypes :refer-macros [case-of]]
             [provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.todo.specs :as specs]
-            [clojure.core.async :as async :refer [put!]]
-            [clojure.spec.alpha :as s]
-            [provisdom.eala-dubh.todo.commands :as command]
-            [lambdaisland.uniontypes :refer-macros [case-of]]))
+            [provisdom.eala-dubh.todo.commands :as command]))
 
 (defonce view-state (r/atom {}))
 (defonce intent-ch (async/chan))

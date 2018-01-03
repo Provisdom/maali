@@ -2,8 +2,7 @@
   "Support for tracing state changes in a Clara session."
   (:require [clara.rules.listener :as l]
             [clara.rules.engine :as eng]
-    #?(:clj [clojure.pprint :refer [pprint]])
-    #?(:cljs [cljs.pprint :refer [pprint]])))
+            [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]))
 
 (declare to-tracing-listener)
 
@@ -47,15 +46,15 @@
     (append-trace listener {:type :retract-facts-logical :token token :facts facts}))
 
   (add-accum-reduced! [listener node join-bindings result fact-bindings]
-    (append-trace listener {:type :accum-reduced
-                            :node node
+    (append-trace listener {:type          :accum-reduced
+                            :node          node
                             :join-bindings join-bindings
-                            :result result
+                            :result        result
                             :fact-bindings fact-bindings}))
 
   (remove-accum-reduced! [listener node join-bindings fact-bindings]
-    (append-trace listener {:type :remove-accum-reduced
-                            :node node
+    (append-trace listener {:type          :remove-accum-reduced
+                            :node          node
                             :join-bindings join-bindings
                             :fact-bindings fact-bindings}))
 
@@ -117,7 +116,7 @@
   [session]
   (if-let [listener (->> (eng/components session)
                          :listeners
-                         (filter #(instance? PersistentTracingListener %) )
+                         (filter #(instance? PersistentTracingListener %))
                          (first))]
     (.-trace ^PersistentTracingListener listener)
     nil #_(throw (ex-info "No tracing listener attached to session." {:session session}))))

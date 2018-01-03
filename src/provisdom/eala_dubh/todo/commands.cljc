@@ -1,10 +1,10 @@
 (ns provisdom.eala-dubh.todo.commands
   (:require [clojure.spec.alpha :as s]
+            [lambdaisland.uniontypes #?(:clj :refer :cljs :refer-macros) [case-of]]
+            [net.cgrand.xforms :as xforms]
             [provisdom.eala-dubh.todo.specs :as specs]
             [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
-            [net.cgrand.xforms :as xforms]
-            [lambdaisland.uniontypes #?(:clj :refer :cljs :refer-macros) [case-of]]
             [provisdom.eala-dubh.listeners :as listeners]))
 
 ;;; Model command specs

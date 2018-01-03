@@ -1,8 +1,7 @@
 (ns provisdom.eala-dubh.todo.rules
   (:require [clojure.spec.alpha :as s]
             [provisdom.eala-dubh.todo.specs :as specs]
-    #?(:clj [provisdom.eala-dubh.rules :refer [defrules defqueries] :as rules]
-       :cljs [provisdom.eala-dubh.rules :refer-macros [defrules defqueries] :as rules])
+            [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries] :as rules]
             [clara.rules.accumulators :as acc]))
 
 ;;; Convenience function to create new ::Todo facts

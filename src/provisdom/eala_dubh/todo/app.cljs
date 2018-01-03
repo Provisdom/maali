@@ -1,13 +1,12 @@
 (ns provisdom.eala-dubh.todo.app
   (:require [provisdom.eala-dubh.rules :refer-macros [defsession] :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
-            [provisdom.eala-dubh.todo.specs :as specs]
             [provisdom.eala-dubh.listeners :as listeners]
             [provisdom.eala-dubh.pprint]
             [provisdom.eala-dubh.todo.commands :as commands]
             [provisdom.eala-dubh.todo.view :as view]
             [clojure.spec.test.alpha :as st]
-            [clojure.core.async :as async]
+            [cljs.core.async :as async]
             [cljs.pprint :refer [pprint]]))
 
 
