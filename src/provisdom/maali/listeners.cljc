@@ -1,9 +1,9 @@
-(ns provisdom.eala-dubh.listeners
+(ns provisdom.maali.listeners
   "Support for tracing state changes in a Clara session."
   (:require [clara.rules.listener :as l]
             [clara.rules.engine :as eng]
-            [provisdom.eala-dubh.rules :as rules]
-            [provisdom.eala-dubh.tracing :as tracing]))
+            [provisdom.maali.rules :as rules]
+            [provisdom.maali.tracing :as tracing]))
 
 (declare to-query-listener)
 

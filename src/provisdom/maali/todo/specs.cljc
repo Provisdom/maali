@@ -1,4 +1,4 @@
-(ns provisdom.eala-dubh.todo.specs
+(ns provisdom.maali.todo.specs
   (:require [clojure.spec.alpha :as s]))
 
 ;;; Fact specs. Use convention that specs for fact "types" are camel-cased.

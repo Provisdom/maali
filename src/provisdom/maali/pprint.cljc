@@ -1,4 +1,4 @@
-(ns provisdom.eala-dubh.pprint
+(ns provisdom.maali.pprint
   #?(:cljs
      (:require-macros
        [cljs.pprint :as m :refer [pprint-logical-block print-length-loop]]))

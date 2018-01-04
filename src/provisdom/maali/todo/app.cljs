@@ -1,11 +1,11 @@
-(ns provisdom.eala-dubh.todo.app
-  (:require [provisdom.eala-dubh.todo.specs :as specs]
-            [provisdom.eala-dubh.rules :refer-macros [defsession] :as rules]
-            [provisdom.eala-dubh.todo.rules :as todo]
-            [provisdom.eala-dubh.listeners :as listeners]
-            [provisdom.eala-dubh.pprint]
-            [provisdom.eala-dubh.todo.commands :as commands]
-            [provisdom.eala-dubh.todo.view :as view]
+(ns provisdom.maali.todo.app
+  (:require [provisdom.maali.todo.specs :as specs]
+            [provisdom.maali.rules :refer-macros [defsession] :as rules]
+            [provisdom.maali.todo.rules :as todo]
+            [provisdom.maali.listeners :as listeners]
+            [provisdom.maali.pprint]
+            [provisdom.maali.todo.commands :as commands]
+            [provisdom.maali.todo.view :as view]
             [clojure.spec.test.alpha :as st]
             [cljs.core.async :as async]
             [cljs.pprint :refer [pprint]]))
@@ -25,7 +25,7 @@
   #_(session/register s session-key)
   #_(session/reload-session :foo))
 
-(defsession session [provisdom.eala-dubh.todo.rules/rules provisdom.eala-dubh.todo.rules/queries]
+(defsession session [provisdom.maali.todo.rules/rules provisdom.maali.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
 (def xf (comp commands/update-state-xf

@@ -1,11 +1,11 @@
-(ns provisdom.eala-dubh.todo.view
+(ns provisdom.maali.todo.view
   (:require [cljs.core.async :as async :refer [put!]]
             [cljs.spec.alpha :as s]
             [reagent.core :as r]
             [lambdaisland.uniontypes :refer-macros [case-of]]
-            [provisdom.eala-dubh.todo.rules :as todo]
-            [provisdom.eala-dubh.todo.specs :as specs]
-            [provisdom.eala-dubh.todo.commands :as command]))
+            [provisdom.maali.todo.rules :as todo]
+            [provisdom.maali.todo.specs :as specs]
+            [provisdom.maali.todo.commands :as command]))
 
 (defonce view-state (r/atom {}))
 (defonce intent-ch (async/chan))
@@ -92,7 +92,7 @@
          [:h1 "todos"]
          [todo-input {:id          "new-todo"
                       :placeholder "What needs to be done?"
-                      :on-save     #(do! [:insert (todo/new-todo %)])}]]
+                      :on-save     #(do! [:insert (specs/new-todo %)])}]]
         [:div
          (when (-> todo-list count pos?)
            [:section#main

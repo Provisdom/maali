@@ -1,4 +1,4 @@
-(ns provisdom.eala-dubh.tracing
+(ns provisdom.maali.tracing
   "Support for tracing state changes in a Clara session."
   (:require [clara.rules.listener :as l]
             [clara.rules.engine :as eng]

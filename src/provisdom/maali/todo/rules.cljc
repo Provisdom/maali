@@ -1,7 +1,7 @@
-(ns provisdom.eala-dubh.todo.rules
+(ns provisdom.maali.todo.rules
   (:require [clojure.spec.alpha :as s]
-            [provisdom.eala-dubh.todo.specs :as specs]
-            [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries] :as rules]
+            [provisdom.maali.todo.specs :as specs]
+            [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries] :as rules]
             [clara.rules.accumulators :as acc]))
 
 ;;; Rules

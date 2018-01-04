@@ -1,11 +1,11 @@
-(ns provisdom.eala-dubh.todo.commands
+(ns provisdom.maali.todo.commands
   (:require [clojure.spec.alpha :as s]
             [lambdaisland.uniontypes #?(:clj :refer :cljs :refer-macros) [case-of]]
             [net.cgrand.xforms :as xforms]
-            [provisdom.eala-dubh.todo.specs :as specs]
-            [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
-            [provisdom.eala-dubh.todo.rules :as todo]
-            [provisdom.eala-dubh.listeners :as listeners]))
+            [provisdom.maali.todo.specs :as specs]
+            [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
+            [provisdom.maali.todo.rules :as todo]
+            [provisdom.maali.listeners :as listeners]))
 
 ;;; Model command specs
 (s/def ::init (s/cat :command #{:init} :init-session rules/session?))

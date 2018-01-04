@@ -1,4 +1,4 @@
-(ns provisdom.eala-dubh.rules
+(ns provisdom.maali.rules
   (:require [clojure.spec.alpha :as s]
             [clara.rules :as rules]
             [clara.rules.engine]
@@ -51,7 +51,7 @@
      [name fields & body]
      `(defrecord ~name
         ~fields
-        ~'provisdom.eala-dubh.rules/TypeInfo
+        ~'provisdom.maali.rules/TypeInfo
         (~'gettype [_#] (symbol ~(str (cljs-ns)) ~(str name)))
         ~@body)))
 
@@ -130,9 +130,7 @@
 (defn check-and-spec
   [spec facts]
   (mapv #(if-let [e (s/explain-data spec %)]
-           (do
-             #?(:cljs (cljs.pprint/pprint e))
-             (throw (ex-info "Fact failed spec" {:fact % :explanation e})))
+           (throw (ex-info "Fact failed spec" {:fact % :explanation e}))
            (spec-type % spec))
         facts))
 

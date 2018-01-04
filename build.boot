@@ -62,7 +62,7 @@
 
 (deftask development []
   (task-options! cljs {:optimizations :none}
-                 reload {:on-jsload 'provisdom.eala-dubh.todo.app/reload})
+                 reload {:on-jsload 'provisdom.maali.todo.app/reload})
   identity)
 
 (deftask dev-cljs

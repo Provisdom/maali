@@ -1,4 +1,4 @@
-(ns provisdom.eala-dubh.session
+(ns provisdom.maali.session
   (:require [clara.rules :refer [insert insert-all retract fire-rules insert! retract!]]
             [clara.tools.tracing :as tracing]
             [clara.tools.inspect :as inspect]
