@@ -1,5 +1,6 @@
 (ns provisdom.eala-dubh.todo.app
-  (:require [provisdom.eala-dubh.rules :refer-macros [defsession] :as rules]
+  (:require [provisdom.eala-dubh.todo.specs :as specs]
+            [provisdom.eala-dubh.rules :refer-macros [defsession] :as rules]
             [provisdom.eala-dubh.todo.rules :as todo]
             [provisdom.eala-dubh.listeners :as listeners]
             [provisdom.eala-dubh.pprint]
@@ -10,7 +11,7 @@
             [cljs.pprint :refer [pprint]]))
 
 
-(enable-console-print!)
+#_(enable-console-print!)
 
 #_(st/instrument)
 
@@ -38,10 +39,10 @@
 
 (def init-cmds [[:init session]
                 [:update-visibility :all]
-                [:insert-many [(todo/new-todo "Rename Cloact to Reagent")
-                               (todo/new-todo "Add undo demo")
-                               (todo/new-todo "Make all rendering async")
-                               (todo/new-todo "Allow any arguments to component functions")]]])
+                [:insert-many [(specs/new-todo "Rename Cloact to Reagent")
+                               (specs/new-todo "Add undo demo")
+                               (specs/new-todo "Make all rendering async")
+                               (specs/new-todo "Allow any arguments to component functions")]]])
 
 (async/pipe view/intent-ch command-ch)
 (async/pipe command-ch view-ch)

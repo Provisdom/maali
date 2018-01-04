@@ -8,7 +8,7 @@
             [provisdom.eala-dubh.listeners :as listeners]))
 
 ;;; Model command specs
-(s/def ::init (s/cat :command #{:init} :init-session rules/session?)) ; TODO - spec session?
+(s/def ::init (s/cat :command #{:init} :init-session rules/session?))
 (s/def ::insert (s/cat :command #{:insert} :todo ::specs/Todo))
 (s/def ::insert-many (s/cat :command #{:insert-many} :todos (s/coll-of ::specs/Todo)))
 (s/def ::update (s/cat :command #{:update} :id ::specs/id :attrs ::specs/todo-attrs))

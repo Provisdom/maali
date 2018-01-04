@@ -4,13 +4,6 @@
             [provisdom.eala-dubh.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries] :as rules]
             [clara.rules.accumulators :as acc]))
 
-;;; Convenience function to create new ::Todo facts
-(def next-id (atom 0))
-
-(defn new-todo
-  [title]
-  #::specs{:id (swap! next-id inc) :title title :done false :edit false})
-
 ;;; Rules
 (defrules rules
   [::active-count!
@@ -50,9 +43,6 @@
   [::all-completed [] [::specs/All-Completed (= ?all-completed all-completed)]]
 
   [::show-clear [] [::specs/Show-Clear (= ?show-clear show-clear)]])
-
-(enable-console-print!)
-(cljs.pprint/pprint queries)
 
 ;;; Query result specs
 (s/def ::?id ::specs/id)

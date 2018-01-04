@@ -21,3 +21,10 @@
 
 (s/def ::show-clear boolean?)
 (s/def ::Show-Clear (s/keys :req [::show-clear]))
+
+;;; Convenience function to create new ::Todo facts
+(def next-id (atom 0))
+
+(defn new-todo
+  [title]
+  #::{:id (swap! next-id inc) :title title :done false :edit false})
