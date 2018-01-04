@@ -1,12 +1,12 @@
 (ns sandbox.foo
-  (:require [provisdom.maali.todo.specs :as specs]
+  (:require [provisdom.todo.specs :as specs]
             [provisdom.maali.rules :refer-macros [defrules defqueries defsession] :as rules]
-            [provisdom.maali.todo.rules :as todo]
+            [provisdom.todo.rules :as todo]
             [provisdom.maali.listeners :as listeners]
             [provisdom.maali.pprint :refer-macros [pprint]]
-            [provisdom.maali.todo.commands :as commands]))
+            [provisdom.todo.commands :as commands]))
 
-(defsession session [provisdom.maali.todo.rules/rules provisdom.maali.todo.rules/queries]
+(defsession session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
 (def td1 (specs/new-todo "Hi"))

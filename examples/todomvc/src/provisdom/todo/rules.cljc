@@ -1,6 +1,6 @@
-(ns provisdom.maali.todo.rules
+(ns provisdom.todo.rules
   (:require [clojure.spec.alpha :as s]
-            [provisdom.maali.todo.specs :as specs]
+            [provisdom.todo.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries] :as rules]
             [clara.rules.accumulators :as acc]))
 

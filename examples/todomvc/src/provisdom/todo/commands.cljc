@@ -1,10 +1,10 @@
-(ns provisdom.maali.todo.commands
+(ns provisdom.todo.commands
   (:require [clojure.spec.alpha :as s]
             [lambdaisland.uniontypes #?(:clj :refer :cljs :refer-macros) [case-of]]
             [net.cgrand.xforms :as xforms]
-            [provisdom.maali.todo.specs :as specs]
+            [provisdom.todo.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
-            [provisdom.maali.todo.rules :as todo]
+            [provisdom.todo.rules :as todo]
             [provisdom.maali.listeners :as listeners]))
 
 ;;; Model command specs

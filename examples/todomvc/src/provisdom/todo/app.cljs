@@ -1,11 +1,11 @@
-(ns provisdom.maali.todo.app
-  (:require [provisdom.maali.todo.specs :as specs]
+(ns provisdom.todo.app
+  (:require [provisdom.todo.specs :as specs]
             [provisdom.maali.rules :refer-macros [defsession] :as rules]
-            [provisdom.maali.todo.rules :as todo]
+            [provisdom.todo.rules :as todo]
             [provisdom.maali.listeners :as listeners]
             [provisdom.maali.pprint]
-            [provisdom.maali.todo.commands :as commands]
-            [provisdom.maali.todo.view :as view]
+            [provisdom.todo.commands :as commands]
+            [provisdom.todo.view :as view]
             [clojure.spec.test.alpha :as st]
             [cljs.core.async :as async]
             [cljs.pprint :refer [pprint]]))
@@ -25,7 +25,7 @@
   #_(session/register s session-key)
   #_(session/reload-session :foo))
 
-(defsession session [provisdom.maali.todo.rules/rules provisdom.maali.todo.rules/queries]
+(defsession session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
 (def xf (comp commands/update-state-xf

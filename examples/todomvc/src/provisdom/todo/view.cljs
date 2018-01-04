@@ -1,11 +1,11 @@
-(ns provisdom.maali.todo.view
+(ns provisdom.todo.view
   (:require [cljs.core.async :as async :refer [put!]]
             [cljs.spec.alpha :as s]
             [reagent.core :as r]
             [lambdaisland.uniontypes :refer-macros [case-of]]
-            [provisdom.maali.todo.rules :as todo]
-            [provisdom.maali.todo.specs :as specs]
-            [provisdom.maali.todo.commands :as command]))
+            [provisdom.todo.rules :as todo]
+            [provisdom.todo.specs :as specs]
+            [provisdom.todo.commands :as command]))
 
 (defonce view-state (r/atom {}))
 (defonce intent-ch (async/chan))
