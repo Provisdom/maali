@@ -1,11 +1,15 @@
 (ns provisdom.maali.rules
-  (:require [clojure.spec.alpha :as s]
-            [clara.rules :as rules]
+  (:require [clara.rules :as rules]
             [clara.rules.engine]
-    #?(:clj [clara.macros :as macros])
-    #?(:clj [clara.rules.compiler :as com])
-    #?(:cljs [cljs.spec.alpha]))
-  #?(:clj (:import [clara.rules.engine LocalSession])))
+    #?(:clj
+            [clara.macros :as macros])
+    #?(:clj
+            [clara.rules.compiler :as com])
+    #?(:clj
+            [clojure.spec.alpha :as s])
+    #?(:cljs [cljs.spec.alpha :as s]))
+  #?(:clj
+     (:import [clara.rules.engine LocalSession])))
 
 #?(:clj
    (defn compiling-cljs?
@@ -139,8 +143,10 @@
 
 (defn check-and-spec
   [spec facts]
+  (let [form (@cljs.spec.alpha/registry-ref spec)]
+    (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " spec) {:spec spec}))))
   (mapv #(if-let [e (s/explain-data spec %)]
-           (throw (ex-info "Fact failed spec" {:fact % :explanation e}))
+           (throw (ex-info (str "Fact failed spec " spec) {:fact % :explanation e}))
            (spec-type % spec))
         facts))
 
@@ -166,10 +172,16 @@
   (apply rules/retract! (check-and-spec spec facts)))
 
 (defn upsert
+  [session spec old-fact new-fact]
+  (cond-> session
+          old-fact (retract spec old-fact)
+          new-fact (insert spec new-fact)))
+
+(defn upsert-q
   [session spec query-fn f & args]
   (let [items (query-fn session)
         new-items (when f (map #(apply f % args) items))
-        s (if (not-empty items) (apply retract spec session items) session)
+        s (if (not-empty items) (apply retract session spec items) session)
         s' (if (not-empty new-items) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
     s'))
 

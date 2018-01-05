@@ -27,9 +27,13 @@
   [::active-article [] [::specs/ActiveArticle (= ?slug slug)]]
   [::tags [] [?tag <- ::specs/Tag]]
   [::comments [] [?comment <- ::specs/Comment]]
-  [::comments-response [] [?comments-response <- ::specs/CommentsResponse]]
   [::profile [] [?profile <- ::specs/Profile]]
-  [::loading [] [?loading <- ::specs/Loading]]
+  [::loading [] [::specs/Loading (= ?section section)]]
   [::filter [] [?filter <- ::specs/Filter]]
-  [::errors [] [?errors <- ::specs/Error]]
-  [::user [] [?user <- ::specs/User]])
+  [::errors [] [::specs/Error (= ?error error)]]
+  [::user [] [?user <- ::specs/User]]
+  [::token [] [::specs/User (= ?token token)]]
+  [::hash [] [::specs/Hash (= ?hash hash)]])
+
+(defqueries debug-queries
+  [::comments-response [] [?comments-response <- ::specs/CommentsResponse]])

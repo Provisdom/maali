@@ -11,7 +11,7 @@
             [cljs.pprint :refer [pprint]]))
 
 
-#_(enable-console-print!)
+(enable-console-print!)
 
 #_(st/instrument)
 

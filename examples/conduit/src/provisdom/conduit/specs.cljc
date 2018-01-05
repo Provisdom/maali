@@ -50,7 +50,20 @@
 (s/def ::feed boolean?)
 (s/def ::Filter (s/keys :opt [::author ::tag ::offset ::favorites ::feed]))
 
-(s/def ::Error (s/tuple keyword? string?))
+(s/def ::error (s/tuple keyword? string?))
+(s/def ::Error (s/keys :req [::error]))
 
 (s/def ::response map?)
 (s/def ::CommentsResponse (s/keys :req [::response ::slug]))
+
+(s/def ::hash string?)
+(s/def ::Hash (s/keys :req [::hash]))
+
+;; At most one instance should exist in working memory
+(s/def ::singletons #{::ActivePage ::ActiveArticle ::User ::Profile ::ArticleCount ::Hash})
+(s/def ::singleton-value (s/or ::ActivePage ::ActivePage
+                               ::ActiveArticle ::ActiveArticle
+                               ::User ::User
+                               ::Profile ::Profile
+                               ::ArticleCount ::ArticleCount
+                               ::Hash ::Hash))

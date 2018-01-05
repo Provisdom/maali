@@ -32,7 +32,7 @@
 (rules/query s2 ::conduit/comments)
 
 (def s3 (-> s1
-            (rules/retract ::specs/ActiveArticle aa)
+            (rules/retract ::specs/ActiveArticle {::specs/slug "foo"})
             (rules/fire-rules)))
 
 (rules/query s3 ::conduit/active-article)

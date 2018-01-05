@@ -33,14 +33,14 @@
            ::init {:keys [init-session]} init-session
            ::insert {:keys [todo]} (rules/insert session ::specs/Todo todo)
            ::insert-many {:keys [todos]} (apply rules/insert session ::specs/Todo todos)
-           ::update {:keys [id attrs]} (rules/upsert session ::specs/Todo (rules/query-fn ::todo/todo-by-id :?todo :?id id)
+           ::update {:keys [id attrs]} (rules/upsert-q session ::specs/Todo (rules/query-fn ::todo/todo-by-id :?todo :?id id)
                                                      merge attrs)
-           ::complete-all {:keys [done]} (rules/upsert session ::specs/Todo
+           ::complete-all {:keys [done]} (rules/upsert-q session ::specs/Todo
                                                        (rules/query-fn (if done ::todo/active-todos ::todo/completed-todos) :?todo)
                                                        assoc ::specs/done done)
-           ::retract {:keys [id]} (rules/retract session (rules/query-fn ::todo/todo-by-id :?todo :?id id))
-           ::retract-completed _ (rules/retract session (rules/query-fn ::todo/completed-todos :?todo))
-           ::update-visibility {:keys [visibility]} (rules/upsert session ::specs/Visibility
+           ::retract {:keys [id]} (rules/retract session ::specs/Todo (rules/query-fn ::todo/todo-by-id :?todo :?id id))
+           ::retract-completed _ (rules/retract session ::specs/Todo (rules/query-fn ::todo/completed-todos :?todo))
+           ::update-visibility {:keys [visibility]} (rules/upsert-q session ::specs/Visibility
                                                                   (rules/query-fn ::todo/visibility :?visibility)
                                                                   assoc ::specs/visibility visibility)))
 
