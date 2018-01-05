@@ -66,28 +66,38 @@
          (if (keyword? form) (recur form) form)))))
 
 #?(:clj
+   (defn add-args-to-constraint
+     [constraint]
+     (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
+       (if (or args (not (contains? c :type)))
+         constraint
+         (let [form (let [f (resolve-spec-form type)]
+                      (if (and (list? f) (= 'cljs.spec.alpha/keys (first f)))
+                        f
+                        (throw (ex-info
+                                 (str "Fact types must be spec'ed with s/keys: (s/def " type " " (pr-str f) ")")
+                                 {:type type :form f}))))
+               args [{:keys (vec (mapcat (fn [[keys-type keys]]
+                                           (if (#{:req-un :opt-un} keys-type)
+                                             (map (comp keyword name) keys)
+                                             keys))
+                                         (->> form (drop 1) (partition 2))))}
+                     #_(com/field-name->accessors-used (eval type) constraints)]]
+           (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))
+     ))
+
+#?(:clj
    (defn add-args-to-production
      [production]
      (let [lhs (:lhs production)]
        (let [elhs (eval lhs)
              lhs' (vec
                     (for [constraint elhs]
-                      (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
-                        (if (or args (not (contains? c :type)))
-                          constraint
-                          (let [form (let [f (resolve-spec-form type)]
-                                       (if (and (list? f) (= 'cljs.spec.alpha/keys (first f)))
-                                         f
-                                         (throw (ex-info
-                                                  (str "Fact types must be spec'ed with s/keys: (s/def " type " " (pr-str f) ")")
-                                                  {:type type :form f}))))
-                                args [{:keys (vec (mapcat (fn [[keys-type keys]]
-                                                            (if (#{:req-un :opt-un} keys-type)
-                                                              (map (comp keyword name) keys)
-                                                              keys))
-                                                          (->> form (drop 1) (partition 2))))}
-                                      #_(com/field-name->accessors-used (eval type) constraints)]]
-                            (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))))]
+                      (if (vector? constraint)
+                        (let [[op & cs] constraint]
+                          (if (#{:and :or :not} op)
+                            (into [op] (map add-args-to-constraint cs))))
+                        (add-args-to-constraint constraint))))]
          (assoc production :lhs (list 'quote lhs'))))))
 
 #?(:clj
@@ -147,19 +157,19 @@
   (rules/insert-all-unconditional! (check-and-spec spec facts)))
 
 (defn retract
-  [session f & facts]
-  (let [facts (if (fn? f) (f session) (cons f facts))]
+  [session spec f & facts]
+  (let [facts (check-and-spec spec (if (fn? f) (f session) (cons f facts)))]
     (apply rules/retract session facts)))
 
 (defn retract!
-  [& facts]
-  (apply rules/retract! facts))
+  [spec & facts]
+  (apply rules/retract! (check-and-spec spec facts)))
 
 (defn upsert
   [session spec query-fn f & args]
   (let [items (query-fn session)
         new-items (when f (map #(apply f % args) items))
-        s (if (not-empty items) (apply retract session items) session)
+        s (if (not-empty items) (apply retract spec session items) session)
         s' (if (not-empty new-items) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
     s'))
 

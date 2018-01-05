@@ -29,7 +29,7 @@
 #_(swap! boot.repl/*default-middleware*
          conj 'cemerick.piggieback/wrap-cljs-repl)
 
-(def +version+ "0.0.1-alpha1")
+(def +version+ "0.0.1-SNAPSHOT")
 
 (task-options!
   pom {:project     'provisdom/maali
