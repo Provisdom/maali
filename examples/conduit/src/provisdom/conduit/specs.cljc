@@ -86,7 +86,7 @@
 
 ;;; Requests to server
 (s/def ::request map?)
-(s/def ::request-type #{:articles :comments :profile :tags})
+(s/def ::request-type #{:articles :article :comments :profile :tags})
 (s/def ::Request (s/keys :req [::request ::request-type]))
 (s/def ::Pending (s/keys :req [::request]))
 

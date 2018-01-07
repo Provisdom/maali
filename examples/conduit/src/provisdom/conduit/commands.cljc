@@ -80,14 +80,16 @@
 
            ::conduit/article-count
            {[{:keys [?count]} & _] :result}
-           [:render :article-count ?count]
+           (when ?count
+             [:render :article-count ?count])
 
            ::conduit/active-article
            {[{:keys [?article]} & _] :result}
-           [:render :article ?article]
+           (when ?article
+             [:render :article ?article])
 
            ::conduit/comments
            {:keys [result]}
            [:render :comments (mapv :?comment result)]))
 
-(def query-result-xf (map #(map query-result->effect %)))
+(def query-result-xf (map #(sequence (comp (map query-result->effect) (filter seq)) %)))

@@ -30,6 +30,13 @@
    =>
    (rules/retract! ::specs/Pending {::specs/request ?request})]
 
+  ;;; Clean up responses so they don't leak memory
+  [::retracted-request!
+   [?response <- ::specs/Response (= ?request request)]
+   [:not [::specs/Request (= ?request request)]]
+   =>
+   (rules/retract! ::specs/Response ?response)]
+
   [::cancelled-request!
    [?response <- ::specs/Response (= ?request request)]
    [?pending <- ::specs/Pending (= ?request request)]
@@ -38,7 +45,7 @@
    (rules/retract! ::specs/Pending ?pending)
    (rules/retract! ::specs/Response ?response)]
 
- [::tags-request!
+  [::tags-request!
    [::specs/ActivePage (= :home page)]
    =>
    (rules/insert! ::specs/Request #::specs{:request-type :tags
@@ -52,6 +59,7 @@
    (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))]
 
   [::articles-request!
+   [:or [::specs/ActivePage (= :home page)] [::specs/ActivePage (= :profile page)]]
    [?filter <- ::specs/Filter (= ?feed feed)]
    [::specs/Token (= ?token token)]
    =>
@@ -74,14 +82,26 @@
    (when ?slug
      (rules/insert! ::specs/ActiveArticle {::specs/slug ?slug}))]
 
-  [::comments-request!
+  [::article-request!
    [::specs/ActiveArticle (= ?slug slug)]
    [::specs/Token (= ?token token)]
    =>
+   (rules/insert! ::specs/Request #::specs{:request-type :article
+                                           :request      {:method  :get
+                                                          :uri     (endpoint "articles" ?slug) ;; evaluates to "api/articles/:slug"
+                                                          :headers (auth-header ?token)}})
    (rules/insert! ::specs/Request #::specs{:request-type :comments
                                            :request      {:method  :get
                                                           :uri     (endpoint "articles" ?slug "comments")
-                                                          :headers (auth-header ?token)}})]
+                                                          :headers (auth-header ?token)}})
+   ]
+
+  [::article-response!
+   [::specs/Request (= :article request-type) (= ?request request)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   =>
+   (println ?response)
+   (rules/insert! ::specs/Article (:article ?response))]
 
   [::comments-response!
    [::specs/Request (= :comments request-type) (= ?request request)]
@@ -99,7 +119,7 @@
    [:not [::specs/Pending (= ?request request)]]
    [:not [::specs/Response (= ?request request)]]]
   [::loading [] [::specs/Loading (= ?section section)]]
-  [::articles [] [?article <- ::specs/Article]]
+  [::articles [] [:or [::specs/ActivePage (= :home page)] [::specs/ActivePage (= :profile page)]] [?article <- ::specs/Article]]
   [::article-count [] [::specs/ArticleCount (= ?count count)]]
   [::active-article [] [::specs/ActiveArticle (= ?slug slug)] [?article <- ::specs/Article (= ?slug slug)]]
   [::comments [] [?comment <- ::specs/Comment]]

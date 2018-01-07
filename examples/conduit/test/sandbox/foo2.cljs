@@ -65,10 +65,14 @@
       #_(when effects
         (effects/handle-effects command-ch effects)
         (recur (async/<! effect-ch))))
-    (async/put! command-ch [[:init session]])
-    (async/put! command-ch [[:upsert nil init-filter]
+    (async/go
+      (async/>! command-ch [[:init session]])
+      (async/>! command-ch [[:upsert nil init-filter]
                             [:page :home]])
-    (js/setTimeout #(async/put! command-ch [[:page {::specs/slug "asdf"}]]) 1000)
+      (async/<! (async/timeout 1000))
+      (async/>! command-ch [[:page {::specs/slug "asdf"}]])
+      (async/<! (async/timeout 1000))
+      (async/>! command-ch [[:page :home]]))
     #_(async/close! command-ch)))
 
 (if token

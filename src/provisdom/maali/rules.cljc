@@ -189,11 +189,16 @@
     s'))
 
 (defn upsert!
-  ([spec fact]
-   (insert! spec fact))
-  ([spec fact f & args]
-   (retract! fact)
-   (insert! spec (apply f fact args))))
+  ([spec old-fact new-fact]
+   (when old-fact
+     (retract! spec old-fact))
+   (when new-fact
+     (insert! spec new-fact))))
+
+(defn upsert-f!
+  [spec fact f & args]
+  (retract! spec fact)
+  (insert! spec (apply f fact args)))
 
 (defn upsert-unconditional!
   ([spec fact]
