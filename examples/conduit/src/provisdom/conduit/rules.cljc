@@ -83,7 +83,7 @@
      (rules/insert! ::specs/ActiveArticle {::specs/slug ?slug}))]
 
   [::article-request!
-   [::specs/ActiveArticle (= ?slug slug)]
+   [::specs/ActivePage (= :article (first (s/conform ::specs/page page))) (= ?slug (::specs/slug page))]
    [::specs/Token (= ?token token)]
    =>
    (rules/insert! ::specs/Request #::specs{:request-type :article
@@ -121,7 +121,7 @@
   [::loading [] [::specs/Loading (= ?section section)]]
   [::articles [] [:or [::specs/ActivePage (= :home page)] [::specs/ActivePage (= :profile page)]] [?article <- ::specs/Article]]
   [::article-count [] [::specs/ArticleCount (= ?count count)]]
-  [::active-article [] [::specs/ActiveArticle (= ?slug slug)] [?article <- ::specs/Article (= ?slug slug)]]
+  [::active-article [] [::specs/ActivePage (= :article (first (s/conform ::specs/page page))) (= ?slug (::specs/slug page))] [?article <- ::specs/Article (= ?slug slug)]]
   [::comments [] [?comment <- ::specs/Comment]]
   [::tags [] [::specs/Tag (= ?tag tag)]]
   #_[::profile [] [?profile <- ::specs/Profile]]

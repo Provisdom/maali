@@ -80,13 +80,11 @@
 
            ::conduit/article-count
            {[{:keys [?count]} & _] :result}
-           (when ?count
-             [:render :article-count ?count])
+           [:render :article-count (or ?count 0)]
 
            ::conduit/active-article
            {[{:keys [?article]} & _] :result}
-           (when ?article
-             [:render :article ?article])
+           [:render :article ?article]
 
            ::conduit/comments
            {:keys [result]}

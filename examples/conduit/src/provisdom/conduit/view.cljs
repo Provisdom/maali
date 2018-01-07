@@ -8,7 +8,7 @@
 (s/def ::comments (s/cat :var #{:comments} :val (s/coll-of ::specs/Comment)))
 (s/def ::loading (s/cat :var #{:loading} :val (s/coll-of ::specs/section)))
 (s/def ::page (s/cat :var #{:page} :val ::specs/page-name))
-(s/def ::article (s/cat :var #{:article} :val ::specs/Article))
+(s/def ::article (s/cat :var #{:article} :val (s/nilable ::specs/Article)))
 (s/def ::target (s/alt ::articles ::articles
                        ::article-count ::article-count
                        ::page ::page
