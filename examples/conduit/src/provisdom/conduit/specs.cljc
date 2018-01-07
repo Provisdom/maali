@@ -1,7 +1,7 @@
 (ns provisdom.conduit.specs
   (:require [clojure.spec.alpha :as s]))
 
-(s/def ::count (s/int-in 0 #?(:clj Long/MAX_VALUE :cljs js/Number.MAX_SAFE_INTEGER)))
+(s/def ::count nat-int?)
 
 (s/def ::page (s/or :home #{:home}
                     :profile (s/keys :req [::username])
@@ -86,7 +86,7 @@
 
 ;;; Requests to server
 (s/def ::request map?)
-(s/def ::request-type #{:articles :comments :profile})
+(s/def ::request-type #{:articles :comments :profile :tags})
 (s/def ::Request (s/keys :req [::request ::request-type]))
 (s/def ::Pending (s/keys :req [::request]))
 

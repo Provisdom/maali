@@ -122,7 +122,9 @@
           (command-fn command)
           (rules/fire-rules))
       ;;; Allows for initialization command
-      (command-fn nil command))))
+      (-> (command-fn nil command)
+          (with-listener query-listener)
+          (rules/fire-rules)))))
 
 (defn debug-update-with-query-listener-fn
   [command-fn]

@@ -42,29 +42,33 @@
                              (println "EFFECTS" effects)
                              (when effects
                                (s/explain ::effects/effects effects))))
-        xf (comp command-log
+        command-ch (async/chan 1)
+        xf (comp #_command-log
                  commands/update-state-xf
                  listeners/query-bindings-xf
-                 query-log
+                 #_query-log
                  commands/query-result-xf
-                 effect-log)
+                 #_effect-log
+                 (map (partial effects/handle-effects command-ch)))
         debug-xf (comp command-log
                        commands/debug-update-state-xf
                        listeners/query-bindings-xf
-                       commands/query-result-xf)
-        command-ch (async/chan 1 xf)
-        effect-ch (async/chan 1)
-        cmds [[:init session]
-              [:upsert nil init-filter]
-              [:page :home]
-              #_[:upsert init-filter {::specs/feed false}]]]
-    (async/pipe command-ch effect-ch)
-    (async/go-loop [effects (async/<! effect-ch)]
-      (when effects
+                       commands/query-result-xf
+                       (map (partial effects/handle-effects command-ch)))
+        command->effects-ch (async/chan 1 xf)]
+    (async/go-loop [command [[:init session]]]
+      (loop [command command]
+        (when (seq command)
+          (async/>! command->effects-ch command)
+          (recur (async/<! command->effects-ch))))
+      (recur (async/<! command-ch))
+      #_(when effects
         (effects/handle-effects command-ch effects)
         (recur (async/<! effect-ch))))
-    (async/onto-chan command-ch cmds false)
-    (js/setTimeout #(async/onto-chan command-ch [[:page {::specs/slug "asdf"}]] false) 10000)
+    (async/put! command-ch [[:init session]])
+    (async/put! command-ch [[:upsert nil init-filter]
+                            [:page :home]])
+    (js/setTimeout #(async/put! command-ch [[:page {::specs/slug "asdf"}]]) 1000)
     #_(async/close! command-ch)))
 
 (if token

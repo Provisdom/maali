@@ -38,6 +38,19 @@
    (rules/retract! ::specs/Pending ?pending)
    (rules/retract! ::specs/Response ?response)]
 
+ [::tags-request!
+   [::specs/ActivePage (= :home page)]
+   =>
+   (rules/insert! ::specs/Request #::specs{:request-type :tags
+                                           :request      {:method :get
+                                                          :uri    (endpoint "tags")}})]
+
+  [::tags-response!
+   [::specs/Request (= :tags request-type) (= ?request request)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   =>
+   (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))]
+
   [::articles-request!
    [?filter <- ::specs/Filter (= ?feed feed)]
    [::specs/Token (= ?token token)]
@@ -90,7 +103,7 @@
   [::article-count [] [::specs/ArticleCount (= ?count count)]]
   [::active-article [] [::specs/ActiveArticle (= ?slug slug)] [?article <- ::specs/Article (= ?slug slug)]]
   [::comments [] [?comment <- ::specs/Comment]]
-  #_[::tags [] [?tag <- ::specs/Tag]]
+  [::tags [] [::specs/Tag (= ?tag tag)]]
   #_[::profile [] [?profile <- ::specs/Profile]]
   #_[::filter [] [?filter <- ::specs/Filter]]
   #_[::errors [] [::specs/Error (= ?error error)]]
@@ -108,11 +121,14 @@
 (s/def ::?page ::specs/page)
 (s/def ::?section ::specs/section)
 (s/def ::?request ::specs/request)
+(s/def ::?tag ::specs/tag)
 
 (s/def ::active-page (s/cat :query #{::active-page} :result (s/coll-of (s/keys :req-un [::?page]))))
 
 (s/def ::loading (s/cat :query #{::loading} :result (s/coll-of (s/keys :req-un [::?section]))))
 (s/def ::request (s/cat :query #{::request} :result (s/coll-of (s/keys :req-un [::?request]))))
+
+(s/def ::tags (s/cat :query #{::tags} :result (s/coll-of (s/keys :req-un [::?tag]))))
 
 (s/def ::articles (s/cat :query #{::articles} :result (s/coll-of (s/keys :req-un [::?article]))))
 (s/def ::article-count (s/cat :query #{::article-count} :result (s/coll-of (s/keys :req-un [::?count]))))
@@ -123,6 +139,7 @@
 (s/def ::query-result (s/or ::active-page ::active-page
                             ::loading ::loading
                             ::request ::request
+                            ::tags ::tags
                             ::articles ::articles
                             ::article-count ::article-count
                             ::active-article ::active-article

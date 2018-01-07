@@ -10,21 +10,6 @@
             [provisdom.conduit.view :as view]
             [clojure.string :as str]))
 
-;; I provide the :http-xhrio effect handler leveraging cljs-ajax lib
-;; see API docs https://github.com/JulianBirch/cljs-ajax
-;; Note we use the ajax-request.
-;;
-;; Deviation from cljs-ajax options in request
-;; :handler       - not supported, see :on-success and :on-failure
-;; :on-success    - event vector dispatched with result
-;; :on-failure    - event vector dispatched with result
-;;
-;; NOTE: if you nee tokens or other values for your handlers,
-;;       provide them in the on-success and on-failure event e.g.
-;;       [:success-event "my-token"] your handler will get event-v
-;;       [:success-event "my-token" result]
-
-
 (defn ajax-xhrio-handler
   "ajax-request only provides a single handler for success and errors"
   [on-success on-failure xhrio [success? response]]
@@ -57,30 +42,6 @@
                             api))
         (dissoc :on-success :on-failure))))
 
-;; Specs commented out until ClojureScript has a stable release of spec.
-;
-;(s/def ::method keyword?)
-;(s/def ::uri string?)
-;(s/def ::response-format (s/keys :req-un [::description ::read ::content-type]))
-;(s/def ::format (s/keys :req-un [::write ::content-type]))
-;(s/def ::timeout nat-int?)
-;(s/def ::params any?)
-;(s/def ::headers map?)
-;(s/def ::with-credentials boolean?)
-;
-;(s/def ::on-success vector)
-;(s/def ::on-failure vector)
-;
-;(s/def ::request-map (s/and (s/keys :req-un [::method ::uri ::response-format ::on-success ::on-failure]
-;                                    :opt-un [::format ::timeout ::params ::headers ::with-credentials])
-;                            (fn [m] (if (contains? m :params)
-;                                      (contains? m :format)
-;                                      true))))
-;
-;(s/def ::sequential-or-map (s/or :request-map ::request-map :seq-request-maps (s/coll-of ::request-map
-;                                                                                         :kind sequential?
-;                                                                                         :into [])))
-
 (defn http-effect
   [request]
   (-> request
@@ -100,10 +61,10 @@
 (s/def ::effects (s/or :single ::effect
                        :multiple (s/coll-of ::effects)))
 
-(defn handle-effects
+(defn handle-effects*
   [command-ch effect]
   (case-of ::effects effect
-           :multiple _ (doseq [effect effect] (handle-effects command-ch effect))
+           :multiple _ (vec (mapcat (partial handle-effects* command-ch) effect))
            :single _
            (case-of ::effect effect
 
@@ -111,9 +72,17 @@
 
                     ::request {:keys [request]}
                     (let [request' (assoc request :response-format (ajax/json-response-format {:keywords? true})
-                                                 :on-success #(async/put! command-ch [:response #::specs{:response % :request request}])
-                                                 :on-failure #(println %))]
+                                                  :on-success (fn [%] (async/put! command-ch [[:response #::specs{:response % :request request}]]))
+                                                  :on-failure #(println %))]
                       (http-effect request')
-                      (async/put! command-ch [:pending request]))
+                      [[:pending request]])
 
                     ::render {[_ {:keys [var val]}] :target} (view/render var val))))
+
+(defn handle-effects
+  [command-ch effects]
+  (let [commands (handle-effects* command-ch effects)]
+    commands
+    #_(if (seq commands)
+      commands
+      #_(async/put! command-ch commands))))

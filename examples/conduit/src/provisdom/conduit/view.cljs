@@ -2,6 +2,7 @@
   (:require [clojure.spec.alpha :as s]
             [provisdom.conduit.specs :as specs]))
 
+(s/def ::tags (s/cat :var #{:tags} :val (s/coll-of ::specs/tag)))
 (s/def ::articles (s/cat :var #{:articles} :val (s/coll-of ::specs/Article)))
 (s/def ::article-count (s/cat :var #{:article-count} :val ::specs/count))
 (s/def ::comments (s/cat :var #{:comments} :val (s/coll-of ::specs/Comment)))
@@ -11,6 +12,7 @@
 (s/def ::target (s/alt ::articles ::articles
                        ::article-count ::article-count
                        ::page ::page
+                       ::tags ::tags
                        ::article ::article
                        ::comments ::comments
                        ::loading ::loading))

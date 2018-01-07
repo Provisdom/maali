@@ -41,14 +41,21 @@
         :args (s/cat :session rules/session? :command ::command)
         :ret rules/session?)
 
-(def update-state (listeners/update-with-query-listener-fn handle-state-command))
-(def debug-update-state (listeners/debug-update-with-query-listener-fn handle-state-command))
+(defn handle-state-commands
+  [session commands]
+  (reduce handle-state-command session commands))
+
+(s/fdef handle-state-commands
+        :args (s/cat :session rules/session? :commands (s/coll-of ::command))
+        :ret rules/session?)
+
+(def update-state (listeners/update-with-query-listener-fn handle-state-commands))
+(def debug-update-state (listeners/debug-update-with-query-listener-fn handle-state-commands))
 (def update-state-xf (comp (xforms/reductions update-state nil) (drop 1)))
 (def debug-update-state-xf (comp (xforms/reductions debug-update-state nil) (drop 1)))
 
 (defn query-result->effect
   [query-result]
-  #_(println "CONFORM QUERY" (s/conform ::conduit/query-result query-result))
   (case-of ::conduit/query-result query-result
 
            ::conduit/request
@@ -62,6 +69,10 @@
            ::conduit/active-page
            {[{[?page _] :?page} & _] :result}
            [:render :page ?page]
+
+           ::conduit/tags
+           {:keys [result]}
+           [:render :tags (mapv :?tag result)]
 
            ::conduit/articles
            {:keys [result]}
