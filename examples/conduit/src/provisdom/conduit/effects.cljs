@@ -1,11 +1,14 @@
 ;;; Taken from https://github.com/Day8/re-frame-http-fx/blob/master/src/day8/re_frame/http_fx.cljs
 
-(ns provisdom.conduit.http-fx
-  (:require
-    [goog.net.ErrorCode :as errors]
-    [re-frame.core :refer [reg-fx dispatch console]]
-    [ajax.core :as ajax]
-    #_[cljs.spec :as s]))
+(ns provisdom.conduit.effects
+  (:require [cljs.core.async :as async]
+            [goog.net.ErrorCode :as errors]
+            [ajax.core :as ajax]
+            [lambdaisland.uniontypes :refer-macros [case-of]]
+            [cljs.spec.alpha :as s]
+            [provisdom.conduit.specs :as specs]
+            [provisdom.conduit.view :as view]
+            [clojure.string :as str]))
 
 ;; I provide the :http-xhrio effect handler leveraging cljs-ajax lib
 ;; see API docs https://github.com/JulianBirch/cljs-ajax
@@ -41,16 +44,16 @@
 (defn request->xhrio-options
   [{:as   request
     :keys [on-success on-failure]
-    :or   {on-success      [:http-no-on-success]
-           on-failure      [:http-no-on-failure]}}]
+    :or   {on-success [:http-no-on-success]
+           on-failure [:http-no-on-failure]}}]
   ; wrap events in cljs-ajax callback
   (let [api (new js/goog.net.XhrIo)]
     (-> request
         (assoc
-          :api     api
+          :api api
           :handler (partial ajax-xhrio-handler
-                            #(dispatch (conj on-success %))
-                            #(dispatch (conj on-failure %))
+                            on-success
+                            on-failure
                             api))
         (dissoc :on-success :on-failure))))
 
@@ -80,12 +83,37 @@
 
 (defn http-effect
   [request]
-  #_(when-not (s/valid? ::sequential-or-map request)
-      (throw (ex-info "http-xhrio fx: spec error" (s/explain-data ::sequential-or-map request))))
-  (let [#_ #_ [conform-val v] (s/conform ::sequential-or-map request)
-        #_ #_ seq-request-maps (if (= :seq-request-maps conform-val) v [v])
-        seq-request-maps (if (sequential? request) request [request])]
-    (doseq [request seq-request-maps]
-      (-> request request->xhrio-options ajax/ajax-request))))
+  (-> request
+      (merge {})
+      request->xhrio-options
+      ajax/ajax-request))
 
-(reg-fx :http-xhrio http-effect)
+;;; Effects commands
+(s/def ::no-op (s/cat :command #{:no-op}))
+(s/def ::request (s/cat :command #{:request} :request ::specs/request))
+(s/def ::render (s/cat :command #{:render} :target ::view/target))
+
+(s/def ::effect (s/or ::no-op ::no-op
+                      ::request ::request
+                      ::render ::render))
+
+(s/def ::effects (s/or :single ::effect
+                       :multiple (s/coll-of ::effects)))
+
+(defn handle-effects
+  [command-ch effect]
+  (case-of ::effects effect
+           :multiple _ (doseq [effect effect] (handle-effects command-ch effect))
+           :single _
+           (case-of ::effect effect
+
+                    ::no-op _ nil
+
+                    ::request {:keys [request]}
+                    (let [request' (assoc request :response-format (ajax/json-response-format {:keywords? true})
+                                                 :on-success #(async/put! command-ch [:response #::specs{:response % :request request}])
+                                                 :on-failure #(println %))]
+                      (http-effect request')
+                      (async/put! command-ch [:pending request]))
+
+                    ::render {[_ {:keys [var val]}] :target} (view/render var val))))

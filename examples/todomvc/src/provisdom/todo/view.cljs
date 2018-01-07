@@ -3,7 +3,6 @@
             [cljs.spec.alpha :as s]
             [reagent.core :as r]
             [lambdaisland.uniontypes :refer-macros [case-of]]
-            [provisdom.todo.rules :as todo]
             [provisdom.todo.specs :as specs]
             [provisdom.todo.commands :as command]))
 

@@ -4,39 +4,79 @@
             [net.cgrand.xforms :as xforms]
             [provisdom.conduit.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
-            [provisdom.conduit.rules :as todo]
+            [provisdom.conduit.rules :as conduit]
             [provisdom.maali.listeners :as listeners]
             [clojure.string :as str]))
 
 ;;; Model command specs
 (s/def ::init (s/cat :command #{:init} :init-session rules/session?))
-(s/def ::insert (s/cat :command #{:insert} :spec ::specs/singletons :value ::specs/singleton-value))
-(s/def ::retract (s/cat :command #{:retract} :spec ::specs/singletons :value ::specs/singleton-value))
+(s/def ::upsert (s/cat :command #{:upsert} :old-value (s/nilable ::specs/Entity) :new-value (s/nilable ::specs/Entity)))
+(s/def ::pending (s/cat :command #{:pending} :request ::specs/request))
+(s/def ::response (s/cat :command #{:response} :response ::specs/Response))
+(s/def ::page (s/cat :command #{:page} :page ::specs/page))
 (s/def ::command (s/or ::init ::init
-                       ::insert ::insert
-                       ::retract ::retract))
+                       ::upsert ::upsert
+                       ::pending ::pending
+                       ::response ::response
+                       ::page ::page))
+
 ;;; Reduction function to update clara session state
-#_(defn handle-state-command
+(defn handle-state-command
   [session command]
-  (case-of ::command command))
+  (case-of ::command command
+           ::init {:keys [init-session]} init-session
+           ::upsert {:keys [spec old-value new-value]} (let [[old-spec old-value] old-value
+                                                             [new-spec new-value] new-value]
+                                                         (when (and old-spec new-spec (not= old-spec new-spec))
+                                                           (throw (ex-info (str "Upsert specs must match: " old-spec new-spec)
+                                                                           {:command command})))
+                                                         (rules/upsert session (or old-spec new-spec) old-value new-value))
+           ::pending {:keys [request]} (rules/insert session ::specs/Pending {::specs/request request})
+           ::response {:keys [response]} (rules/insert session ::specs/Response response)
+           ::page {[_ page] :page} (rules/upsert-q session ::specs/ActivePage
+                                                   (rules/query-fn ::conduit/active-page :?active-page)
+                                                   merge {::specs/page page})))
 
-;;; Effects commands
-(s/def ::get-articles (s/cat :command #{:get-articles} :filter (s/keys :opt [::specs/username ::specs/favorited])))
-(s/def ::get-feed-articles (s/cat :command #{:get-feed-articles}))
-(s/def ::get-tags (s/cat :command #{:get-tags}))
-(s/def ::get-article-comments (s/cat :command #{:get-article-comments} :slug ::specs/slug))
-(s/def ::get-user-profile (s/cat :command #{:get-user-profile} :username ::specs/username))
+(s/fdef handle-state-command
+        :args (s/cat :session rules/session? :command ::command)
+        :ret rules/session?)
 
-(def api-url "https://conduit.productionready.io/api")
+(def update-state (listeners/update-with-query-listener-fn handle-state-command))
+(def debug-update-state (listeners/debug-update-with-query-listener-fn handle-state-command))
+(def update-state-xf (comp (xforms/reductions update-state nil) (drop 1)))
+(def debug-update-state-xf (comp (xforms/reductions debug-update-state nil) (drop 1)))
 
-(defn endpoint [& params]
-  "Concat any params to api-url separated by /"
-  (str/join "/" (concat [api-url] params)))
+(defn query-result->effect
+  [query-result]
+  #_(println "CONFORM QUERY" (s/conform ::conduit/query-result query-result))
+  (case-of ::conduit/query-result query-result
 
-(defn auth-header [session]
-  "Get user token and format for API authorization"
-  (let [token (first (rules/query-fn ::rules/token :?token))]
-    (if token
-      [:Authorization (str "Token " token)]
-      nil)))
+           ::conduit/request
+           {:keys [result]}
+           (mapv (fn [{:keys [?request]}] [:request ?request]) result)
 
+           ::conduit/loading
+           {:keys [result]}
+           [:render :loading (mapv :?section result)]
+
+           ::conduit/active-page
+           {[{[?page _] :?page} & _] :result}
+           [:render :page ?page]
+
+           ::conduit/articles
+           {:keys [result]}
+           [:render :articles (mapv :?article result)]
+
+           ::conduit/article-count
+           {[{:keys [?count]} & _] :result}
+           [:render :article-count ?count]
+
+           ::conduit/active-article
+           {[{:keys [?article]} & _] :result}
+           [:render :article ?article]
+
+           ::conduit/comments
+           {:keys [result]}
+           [:render :comments (mapv :?comment result)]))
+
+(def query-result-xf (map #(map query-result->effect %)))

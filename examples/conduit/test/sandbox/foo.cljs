@@ -10,8 +10,8 @@
 (defsession session [provisdom.conduit.rules/rules provisdom.conduit.rules/queries]
             {:fact-type-fn rules/spec-type})
 
-(def user1 #::specs{:username "Foo" :image "" :bio "" :email "" :token #js {} :following false})
-(def user2 #::specs{:username "Bar" :image "" :bio "" :email "" :token #js {} :following true})
+(def user1 #::specs{:username "Foo" :image "" :bio "" :email "" :token "" :following false})
+(def user2 #::specs{:username "Bar" :image "" :bio "" :email "" :token "" :following true})
 (def comment1 #::specs{:id 1 :author user1 :created-at #inst "2018-01-01" :updated-at #inst "2018-01-02" :body "Comment 1"})
 (def comment2 #::specs{:id 2 :author user2 :created-at #inst "2018-01-01" :updated-at #inst "2018-01-02" :body "Comment 2"})
 (def aa {::specs/slug "foo"})

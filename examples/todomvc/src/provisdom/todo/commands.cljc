@@ -45,7 +45,7 @@
                                                                   assoc ::specs/visibility visibility)))
 
 (s/fdef handle-state-command
-        :args (s/cat :session rules/session? :command ::specs/command)
+        :args (s/cat :session rules/session? :command ::command)
         :ret rules/session?)
 
 (def update-state (listeners/update-with-query-listener-fn handle-state-command))

@@ -1,6 +1,7 @@
 (ns provisdom.maali.rules
   (:require [clara.rules :as rules]
             [clara.rules.engine]
+            [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]
     #?(:clj
             [clara.macros :as macros])
     #?(:clj
@@ -146,7 +147,9 @@
   (let [form (@cljs.spec.alpha/registry-ref spec)]
     (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " spec) {:spec spec}))))
   (mapv #(if-let [e (s/explain-data spec %)]
-           (throw (ex-info (str "Fact failed spec " spec) {:fact % :explanation e}))
+           (do
+             (pprint e)
+             (throw (ex-info (str "Fact failed spec " spec) {:fact % :explanation e})))
            (spec-type % spec))
         facts))
 
