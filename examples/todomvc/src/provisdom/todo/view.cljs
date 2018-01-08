@@ -3,35 +3,18 @@
             [cljs.spec.alpha :as s]
             [reagent.core :as r]
             [lambdaisland.uniontypes :refer-macros [case-of]]
-            [provisdom.todo.specs :as specs]
-            [provisdom.todo.commands :as command]))
+            [provisdom.todo.specs :as specs]))
 
 (defonce view-state (r/atom {}))
 (defonce intent-ch (async/chan))
 
 (defn update-view
-  [commands]
-  (doseq [command commands]
-    (case-of ::command/view-command command
-             ::command/no-op _ nil
-             ::command/todo-list {:keys [key value]} (swap! view-state assoc key value)
-             ::command/visibility {:keys [key value]} (swap! view-state assoc key value)
-             ::command/active-count {:keys [key value]} (swap! view-state assoc key value)
-             ::command/completed-count {:keys [key value]} (swap! view-state assoc key value)
-             ::command/all-completed {:keys [key value]} (swap! view-state assoc key value)
-             ::command/show-clear {:keys [key value]} (swap! view-state assoc key value))))
-
-(s/fdef update-view
-        :args (s/cat :commands (s/coll-of ::command/view-command))
-        :ret any?)
+  [key value]
+  (swap! view-state assoc key value))
 
 (defn do!
   [command]
   (put! intent-ch command))
-
-(s/fdef do!
-        :args (s/cat :command ::command/command)
-        :ret nil?)
 
 (defn todo-input [{:keys [title on-save on-stop]}]
   (let [val (r/atom title)

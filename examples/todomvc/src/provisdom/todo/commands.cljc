@@ -48,43 +48,14 @@
         :args (s/cat :session rules/session? :command ::command)
         :ret rules/session?)
 
-(def update-state (listeners/update-with-query-listener-fn handle-state-command))
-(def debug-update-state (listeners/debug-update-with-query-listener-fn handle-state-command))
+(def update-state (fn [session command]
+                    (-> session
+                        (handle-state-command command)
+                        (rules/fire-rules))))
+;;; TODO - fix debuggery
+(def debug-update-state (fn [session command]
+                          (-> session
+                              (handle-state-command command)
+                              (rules/fire-rules))))
 (def update-state-xf (comp (xforms/reductions update-state nil) (drop 1)))
 (def debug-update-state-xf (comp (xforms/reductions debug-update-state nil) (drop 1)))
-
-;;; View command specs
-(s/def ::todo-list (s/cat :key #{:todo-list} :value (s/coll-of ::specs/Todo)))
-(s/def ::visibility (s/cat :key #{:visibility} :value ::specs/visibility))
-(s/def ::active-count (s/cat :key #{:active-count} :value ::specs/count))
-(s/def ::completed-count (s/cat :key #{:completed-count} :value ::specs/count))
-(s/def ::all-completed (s/cat :key #{:all-completed} :value ::specs/all-completed))
-(s/def ::show-clear (s/cat :key #{:show-clear} :value ::specs/show-clear))
-(s/def ::no-op (s/cat :no-op #{:no-op}))
-
-(s/def ::view-command (s/or ::todo-list ::todo-list
-                            ::visibility ::visibility
-                            ::active-count ::active-count
-                            ::completed-count ::completed-count
-                            ::all-completed ::all-completed
-                            ::show-clear ::show-clear
-                            ::no-op ::no-op))
-
-(defn query-result->command
-  [binding-map-entry]
-  (case-of ::todo/query-result binding-map-entry
-           ::todo/visible-todos {:keys [result]} [:todo-list (->> result (map :?todo) (sort-by ::specs/id))]
-           ::todo/visibility {:keys [result]} [:visibility (-> result first :?visibility ::specs/visibility)]
-           ::todo/active-count {:keys [result]} [:active-count (-> result first :?count)]
-           ::todo/completed-count {:keys [result]} [:completed-count (-> result first :?count)]
-           ::todo/all-completed {:keys [result]} [:all-completed (-> result first :?all-completed)]
-           ::todo/show-clear {:keys [result]} [:show-clear (-> result first :?show-clear)]
-           ::todo/todo-by-id [] [:no-op]
-           ::todo/completed-todos [] [:no-op]
-           ::todo/active-todos [] [:no-op]))
-
-(s/fdef query-result->command
-        :args (s/cat :binding-map-entry ::todo/query-result)
-        :ret ::view-command)
-
-(def query-result-xf (map #(map query-result->command %)))
