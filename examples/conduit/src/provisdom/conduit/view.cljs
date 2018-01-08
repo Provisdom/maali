@@ -9,12 +9,14 @@
 (s/def ::loading (s/cat :var #{:loading} :val (s/coll-of ::specs/section)))
 (s/def ::page (s/cat :var #{:page} :val ::specs/page-name))
 (s/def ::article (s/cat :var #{:article} :val (s/nilable ::specs/Article)))
+(s/def ::profile (s/cat :var #{:profile} :val (s/nilable ::specs/Profile)))
 (s/def ::target (s/alt ::articles ::articles
                        ::article-count ::article-count
                        ::page ::page
                        ::tags ::tags
                        ::article ::article
                        ::comments ::comments
+                       ::profile ::profile
                        ::loading ::loading))
 
 (defn render

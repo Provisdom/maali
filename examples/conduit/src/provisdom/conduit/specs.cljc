@@ -11,6 +11,12 @@
                     :register #{:register}
                     :settings #{:settings}
                     :favorited #{:favorited}))
+
+(defn page-name
+  [page]
+  (let [[page-name _] (s/conform ::page page)]
+    page-name))
+
 (s/def ::ActivePage (s/keys :req [::page]))
 (s/def ::page-name (->> (s/form ::page)
                        (drop 1)
@@ -54,7 +60,7 @@
 
 (s/def ::ArticleCount (s/keys :req [::count]))
 
-(s/def ::section #{:articles :article :tags :comments :login
+(s/def ::section #{:articles :article :tags :comments :login :profile
                    :register-user :update-user :toggle-follow-user
                    :toggle-favorite-article})
 
@@ -63,7 +69,7 @@
 (s/def ::offset ::count)
 (s/def ::favorites boolean?)
 (s/def ::feed boolean?)
-(s/def ::Filter (s/keys :opt [::author ::tag ::offset ::favorites ::favorited ::feed]))
+(s/def ::Filter (s/keys :opt [::username ::tag ::offset ::favorites ::favorited ::feed]))
 
 (s/def ::error (s/tuple keyword? string?))
 (s/def ::Error (s/keys :req [::error]))

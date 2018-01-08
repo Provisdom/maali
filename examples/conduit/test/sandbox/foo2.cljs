@@ -72,7 +72,9 @@
       (async/<! (async/timeout 1000))
       (async/>! command-ch [[:page {::specs/slug "asdf"}]])
       (async/<! (async/timeout 1000))
-      (async/>! command-ch [[:page :home]]))
+      (async/>! command-ch [[:page {::specs/username "asdf"}]])
+      (async/<! (async/timeout 1000))
+      #_(async/>! command-ch [[:page :home]]))
     #_(async/close! command-ch)))
 
 (if token

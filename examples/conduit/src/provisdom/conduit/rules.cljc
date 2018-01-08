@@ -17,6 +17,19 @@
   (when token
     [:Authorization (str "Token " token)]))
 
+(defn unfuck-filter
+  [filter]
+  (-> filter
+      (assoc :author (::specs/username filter))
+      (dissoc ::specs/username)))
+
+(defn articles-request
+  [filter token]
+  {:method  :get
+   :uri     (if (::feed filter) (endpoint "articles" "feed") (endpoint "articles"))
+   :params  (unfuck-filter filter)
+   :headers (auth-header token)})
+
 (defrules rules
   [::request!
    [::specs/Request (= ?section request-type) (= ?request request)]
@@ -59,15 +72,12 @@
    (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))]
 
   [::articles-request!
-   [:or [::specs/ActivePage (= :home page)] [::specs/ActivePage (= :profile page)]]
+   [::specs/ActivePage (= :home (specs/page-name page))]
    [?filter <- ::specs/Filter (= ?feed feed)]
    [::specs/Token (= ?token token)]
    =>
    (rules/insert! ::specs/Request #::specs{:request-type :articles
-                                           :request      {:method  :get
-                                                          :uri     (if ?feed (endpoint "articles" "feed") (endpoint "articles"))
-                                                          :params  ?filter
-                                                          :headers (auth-header ?token)}})]
+                                           :request      (articles-request ?filter ?token)})]
 
   [::articles-response!
    [::specs/Request (= :articles request-type) (= ?request request)]
@@ -83,7 +93,7 @@
      (rules/insert! ::specs/ActiveArticle {::specs/slug ?slug}))]
 
   [::article-request!
-   [::specs/ActivePage (= :article (first (s/conform ::specs/page page))) (= ?slug (::specs/slug page))]
+   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
    [::specs/Token (= ?token token)]
    =>
    (rules/insert! ::specs/Request #::specs{:request-type :article
@@ -93,21 +103,36 @@
    (rules/insert! ::specs/Request #::specs{:request-type :comments
                                            :request      {:method  :get
                                                           :uri     (endpoint "articles" ?slug "comments")
-                                                          :headers (auth-header ?token)}})
-   ]
+                                                          :headers (auth-header ?token)}})]
 
   [::article-response!
    [::specs/Request (= :article request-type) (= ?request request)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
-   (println ?response)
    (rules/insert! ::specs/Article (:article ?response))]
 
   [::comments-response!
    [::specs/Request (= :comments request-type) (= ?request request)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
-   (apply rules/insert! ::specs/Comment (:comments ?response))])
+   (apply rules/insert! ::specs/Comment (:comments ?response))]
+
+  [::profile!
+   [::specs/ActivePage (= :profile (specs/page-name page)) (= ?username (::specs/username page))]
+   [::specs/Token (= ?token token)]
+   =>
+   (rules/insert! ::specs/Request #::specs{:request-type :articles
+                                           :request      (articles-request {::specs/username ?username} ?token)})
+   (rules/insert! ::specs/Request #::specs{:request-type :profile
+                                           :request      {:method          :get
+                                                          :uri             (endpoint "profiles" ?username)     ;; evaluates to "api/profiles/:profile"
+                                                          :headers         (auth-header ?token)}})]
+
+  [::profile-response!
+   [::specs/Request (= :profile request-type) (= ?request request)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   =>
+   (rules/insert! ::specs/Profile (:profile ?response))])
 
 #_(enable-console-print!)
 #_(cljs.pprint/pprint rules)
@@ -119,12 +144,12 @@
    [:not [::specs/Pending (= ?request request)]]
    [:not [::specs/Response (= ?request request)]]]
   [::loading [] [::specs/Loading (= ?section section)]]
-  [::articles [] [:or [::specs/ActivePage (= :home page)] [::specs/ActivePage (= :profile page)]] [?article <- ::specs/Article]]
+  [::articles [] [:or [::specs/ActivePage (= :home (specs/page-name page))] [::specs/ActivePage (= :profile (specs/page-name page))]] [?article <- ::specs/Article]]
   [::article-count [] [::specs/ArticleCount (= ?count count)]]
-  [::active-article [] [::specs/ActivePage (= :article (first (s/conform ::specs/page page))) (= ?slug (::specs/slug page))] [?article <- ::specs/Article (= ?slug slug)]]
+  [::active-article [] [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))] [?article <- ::specs/Article (= ?slug slug)]]
   [::comments [] [?comment <- ::specs/Comment]]
   [::tags [] [::specs/Tag (= ?tag tag)]]
-  #_[::profile [] [?profile <- ::specs/Profile]]
+  [::profile [] [?profile <- ::specs/Profile]]
   #_[::filter [] [?filter <- ::specs/Filter]]
   #_[::errors [] [::specs/Error (= ?error error)]]
   #_[::user [] [?user <- ::specs/User]]
@@ -142,6 +167,7 @@
 (s/def ::?section ::specs/section)
 (s/def ::?request ::specs/request)
 (s/def ::?tag ::specs/tag)
+(s/def ::?profile ::specs/Profile)
 
 (s/def ::active-page (s/cat :query #{::active-page} :result (s/coll-of (s/keys :req-un [::?page]))))
 
@@ -156,6 +182,8 @@
 
 (s/def ::comments (s/cat :query #{::comments} :result (s/coll-of (s/keys :req-un [::?comment]))))
 
+(s/def ::profile (s/cat :query #{::profile} :result (s/coll-of (s/keys :req-un [::?profile]))))
+
 (s/def ::query-result (s/or ::active-page ::active-page
                             ::loading ::loading
                             ::request ::request
@@ -163,4 +191,5 @@
                             ::articles ::articles
                             ::article-count ::article-count
                             ::active-article ::active-article
+                            ::profile ::profile
                             ::comments ::comments))

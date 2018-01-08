@@ -88,6 +88,10 @@
 
            ::conduit/comments
            {:keys [result]}
-           [:render :comments (mapv :?comment result)]))
+           [:render :comments (mapv :?comment result)]
+
+           ::conduit/profile
+           {[{:keys [?profile]} & _] :result}
+           [:render :profile ?profile]))
 
 (def query-result-xf (map #(sequence (comp (map query-result->effect) (filter seq)) %)))
