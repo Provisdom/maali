@@ -14,11 +14,15 @@
 (s/def ::pending (s/cat :command #{:pending} :request ::specs/request))
 (s/def ::response (s/cat :command #{:response} :response ::specs/Response))
 (s/def ::page (s/cat :command #{:page} :page ::specs/page))
+(s/def ::new-comment (s/cat :command #{:new-comment} :body ::specs/body))
+(s/def ::delete-comment (s/cat :command #{:delete-comment} :id ::specs/id))
 (s/def ::command (s/or ::init ::init
                        ::upsert ::upsert
                        ::pending ::pending
                        ::response ::response
-                       ::page ::page))
+                       ::page ::page
+                       ::new-comment ::new-comment
+                       ::delete-comment ::delete-comment))
 
 ;;; Reduction function to update clara session state
 (defn handle-state-command
@@ -35,7 +39,9 @@
            ::response {:keys [response]} (rules/insert session ::specs/Response response)
            ::page {[_ page] :page} (rules/upsert-q session ::specs/ActivePage
                                                    (rules/query-fn ::conduit/active-page :?active-page)
-                                                   merge {::specs/page page})))
+                                                   merge {::specs/page page})
+           ::new-comment {:keys [body]} (rules/insert session ::specs/NewComment {::specs/body body})
+           ::delete-comment {:keys [id]} (rules/insert session ::specs/DeletedComment {::specs/id id})))
 
 (s/fdef handle-state-command
         :args (s/cat :session rules/session? :command ::command)

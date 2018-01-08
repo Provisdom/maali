@@ -1,5 +1,6 @@
 (ns provisdom.maali.rules
-  (:require [clara.rules :as rules]
+  (:require [clojure.spec.alpha :as s]
+            [clara.rules :as rules]
             [clara.rules.engine]
             [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]
     #?(:clj
@@ -50,6 +51,12 @@
 (defn spec-type
   ([x] (-> x meta ::spec-type))
   ([x s] (with-meta x {::spec-type s})))
+
+(s/def ::lhs (s/+ vector?))
+(s/def ::rhs (s/+ list?))
+(s/def ::params (s/coll-of keyword? :type vector?))
+(s/def ::query (s/cat :name keyword? :params ::params :lhs ::lhs))
+(s/def ::rule (s/cat :name keyword? :lhs ::lhs :sep #{'=>} :rhs ::rhs))
 
 #?(:clj
    (defmacro deffacttype
@@ -112,15 +119,29 @@
        (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
        prods)))
 
+;;; TODO - spec rules/queries and validate to avoid obscure exceptions
+
 #?(:clj
    (defmacro defrules
      [rules-name & rules]
+     (doseq [rule rules]
+       (if-let [e (s/explain-data ::rule rule)]
+         (binding [*out* *err*]
+           (println (str "Rule in " rules-name " failed spec"))
+           (pprint e)
+           (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation e})))))
      (let [prods (build-prods rules-name rules macros/build-rule)]
        `(def ~rules-name ~prods))))
 
 #?(:clj
    (defmacro defqueries
      [queries-name & queries]
+     (doseq [query queries]
+       (if-let [e (s/explain-data ::query query)]
+         (binding [*out* *err*]
+           (println (str "Query in " queries-name " failed spec"))
+           (pprint e)
+           (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation e})))))
      (let [prods (build-prods queries-name queries macros/build-query)]
        `(def ~queries-name ~prods))))
 

@@ -17,20 +17,7 @@
   (when token
     [:Authorization (str "Token " token)]))
 
-(defn unfuck-filter
-  [filter]
-  (-> filter
-      (assoc :author (::specs/username filter))
-      (dissoc ::specs/username)))
-
-(defn articles-request
-  [filter token]
-  {:method  :get
-   :uri     (if (::feed filter) (endpoint "articles" "feed") (endpoint "articles"))
-   :params  (unfuck-filter filter)
-   :headers (auth-header token)})
-
-(defrules rules
+(defrules http-handling-rules
   [::request!
    [::specs/Request (= ?section request-type) (= ?request request)]
    [::specs/Pending (= ?request request)]
@@ -56,8 +43,18 @@
    [:not [::specs/Request (= ?request request)]]
    =>
    (rules/retract! ::specs/Pending ?pending)
-   (rules/retract! ::specs/Response ?response)]
+   (rules/retract! ::specs/Response ?response)])
 
+(defn articles-request
+  [filter token]
+  {:method  :get
+   :uri     (if (::feed filter) (endpoint "articles" "feed") (endpoint "articles"))
+   :params  (-> filter
+                (assoc :author (::specs/username filter))
+                (dissoc ::specs/username))
+   :headers (auth-header token)})
+
+(defrules home-page-rules
   [::tags-request!
    [::specs/ActivePage (= :home page)]
    =>
@@ -84,8 +81,9 @@
    [::specs/Response (= ?request request) (= ?response response)]
    =>
    (rules/insert! ::specs/ArticleCount {::specs/count (:articlesCount ?response)})
-   (apply rules/insert! ::specs/Article (:articles ?response))]
+   (apply rules/insert! ::specs/Article (:articles ?response))])
 
+(defrules article-page-rules
   [::active-article!
    [::specs/ActivePage (= ?page page) (= ?slug (::specs/slug page))]
    =>
@@ -115,8 +113,55 @@
    [::specs/Request (= :comments request-type) (= ?request request)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
-   (apply rules/insert! ::specs/Comment (:comments ?response))]
+   (apply rules/insert! ::specs/Comment (:comments ?response))])
 
+(defrules comment-edit-rules
+  [::new-comment!
+   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
+   [?new-comment <- ::specs/NewComment (= ?body body)]
+   [::specs/Token (= ?token token)]
+   =>
+   (rules/insert! ::specs/Request #::specs{:request-type :comments
+                                           :request-data ?new-comment
+                                           :request      {:method  :post
+                                                          :uri     (endpoint "articles" ?slug "comments")
+                                                          :params  {:comment {:body ?body}}
+                                                          :headers (auth-header ?token)}})]
+
+  [::deleted-comment!
+   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
+   [?deleted-comment <- ::specs/DeletedComment (= ?id id)]
+   [::specs/Token (= ?token token)]
+   =>
+   (rules/insert! ::specs/Request #::specs{:request-type :comments
+                                           :request-data ?deleted-comment
+                                           :request      {:method  :delete
+                                                          :uri     (endpoint "articles" ?slug "comments" ?id)
+                                                          :headers (auth-header ?token)}})]
+  [::new-comment-response!
+   [::specs/Request (= :comments request-type) (= ?request request) (= ?new-comment request-data)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   [?new-comment <- ::specs/NewComment]
+   =>
+   (rules/insert! ::specs/Comment (:comment ?response))]
+
+  [::deleted-comment-response!
+   [::specs/Request (= :comments request-type) (= ?request request) (= ?deleted-comment request-data)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   [?deleted-comment <- ::specs/DeletedComment (= ?id id)]
+   [?comment <- ::specs/Comment (= ?id id)]
+   =>
+   (rules/retract! ::specs/Comment ?comment)]
+
+  [::remove-comment-edits
+   [:not [::specs/ActivePage (= :article (specs/page-name page))]]
+   [:or [?comment-edit <- ::specs/NewComment] [?comment-edit <- ::specs/DeletedComment]]
+   =>
+   (condp = (rules/spec-type ?comment-edit)
+     ::specs/NewComment (rules/retract! ::specs/NewComment ?comment-edit)
+     ::specs/DeletedComment (rules/retract! ::specs/DeletedComment ?comment-edit))])
+
+(defrules profile-page-rules
   [::profile!
    [::specs/ActivePage (= :profile (specs/page-name page)) (= ?username (::specs/username page))]
    [::specs/Token (= ?token token)]

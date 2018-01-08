@@ -32,10 +32,9 @@
 (s/def ::image (s/nilable string?))
 (s/def ::bio (s/nilable string?))
 (s/def ::email string?)
-(s/def ::User (s/keys :req-un [::username ::image ::bio ::email] :opt-un [::following]))
-
 (s/def ::following boolean?)
-(s/def ::Profile (s/keys :req-un [::username ::image ::bio ::following]))
+(s/def ::Profile (s/keys :req-un [::username ::image ::bio] :opt-un [::following]))
+(s/def ::User ::Profile)
 
 (s/def ::tag string?)
 (s/def ::Tag (s/keys :req [::tag]))
@@ -55,6 +54,10 @@
 
 (s/def ::id int?)
 (s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id]))
+(s/def ::NewComment (s/keys :req [::body]))
+(s/def ::DeletedComment (s/keys :req [::id]))
+(s/def ::edit (s/or ::NewComment ::DeletedComment))
+(s/def ::CommentsEdit (s/keys :req [::edit]))
 
 (s/def ::ActiveArticle (s/keys :req [::slug]))
 
@@ -93,7 +96,8 @@
 ;;; Requests to server
 (s/def ::request map?)
 (s/def ::request-type #{:articles :article :comments :profile :tags})
-(s/def ::Request (s/keys :req [::request ::request-type]))
+(s/def ::request-data any?)
+(s/def ::Request (s/keys :req [::request ::request-type] :opt [::request-data]))
 (s/def ::Pending (s/keys :req [::request]))
 
 ;;; Responses from server

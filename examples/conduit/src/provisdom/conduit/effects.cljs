@@ -71,9 +71,11 @@
                     ::no-op _ nil
 
                     ::request {:keys [request]}
-                    (let [request' (assoc request :response-format (ajax/json-response-format {:keywords? true})
-                                                  :on-success (fn [%] (async/put! command-ch [[:response #::specs{:response % :request request}]]))
-                                                  :on-failure #(println %))]
+                    (let [request' (cond-> request
+                                           (#{:post :put :delete} (:method request)) (assoc :format (ajax/json-request-format))
+                                           true (assoc :response-format (ajax/json-response-format {:keywords? true})
+                                                       :on-success (fn [%] (async/put! command-ch [[:response #::specs{:response % :request request}]]))
+                                                       :on-failure #(println %)))]
                       (http-effect request')
                       [[:pending request]])
 
@@ -84,5 +86,5 @@
   (let [commands (handle-effects* command-ch effects)]
     commands
     #_(if (seq commands)
-      commands
-      #_(async/put! command-ch commands))))
+        commands
+        #_(async/put! command-ch commands))))

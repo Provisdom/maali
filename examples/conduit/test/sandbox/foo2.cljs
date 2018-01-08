@@ -18,7 +18,12 @@
 #_(.setItem js/localStorage conduit-user-key "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6MTk2MzMsInVzZXJuYW1lIjoic3BhcmtvZnJlYXNvbiIsImV4cCI6MTUyMDI4NTcyOX0.nJ-ER1GW2rful2y-tQqaBg0KR5zCUcaOnRGuVGdoGI4")
 (def token (.getItem js/localStorage conduit-user-key))
 
-(defsession session [provisdom.conduit.rules/rules provisdom.conduit.rules/queries]
+(defsession session [provisdom.conduit.rules/http-handling-rules
+                     provisdom.conduit.rules/home-page-rules
+                     provisdom.conduit.rules/article-page-rules
+                     provisdom.conduit.rules/comment-edit-rules
+                     provisdom.conduit.rules/profile-page-rules
+                     provisdom.conduit.rules/queries]
             {:fact-type-fn rules/spec-type})
 
 (defn log-xf
@@ -46,7 +51,7 @@
         xf (comp #_command-log
                  commands/update-state-xf
                  listeners/query-bindings-xf
-                 #_query-log
+                 query-log
                  commands/query-result-xf
                  #_effect-log
                  (map (partial effects/handle-effects command-ch)))
@@ -72,8 +77,10 @@
       (async/<! (async/timeout 1000))
       (async/>! command-ch [[:page {::specs/slug "asdf"}]])
       (async/<! (async/timeout 1000))
-      (async/>! command-ch [[:page {::specs/username "asdf"}]])
-      (async/<! (async/timeout 1000))
+      #_(async/>! command-ch [[:new-comment "I'm new here"]])
+      (async/>! command-ch [[:delete-comment 9380]])
+      #_(async/>! command-ch [[:page {::specs/username "asdf"}]])
+      #_(async/<! (async/timeout 1000))
       #_(async/>! command-ch [[:page :home]]))
     #_(async/close! command-ch)))
 
