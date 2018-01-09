@@ -27,7 +27,7 @@
                      provisdom.conduit.rules/profile-page-rules
                      provisdom.conduit.rules/view-update-rules
                      provisdom.conduit.rules/queries]
-            {:fact-type-fn rules/spec-type})
+  {:fact-type-fn rules/spec-type})
 
 (defn log-xf
   [log-fn]
@@ -48,7 +48,7 @@
     (async/go-loop [session session
                     command (async/<! command-ch)]
       (when command
-        (.log js/console "COMMODE" (pr-str command))
+        (.log js/console "COMMAND" (pr-str command))
         (let [session (commands/update-state session command)]
           #_(inspect/explain-activations session)
           (recur session (async/<! command-ch)))))
@@ -61,8 +61,37 @@
       #_(async/>! command-ch [:new-comment "I'm new here"])
       #_(async/>! command-ch [:delete-comment 9397])
       #_(async/>! command-ch [:page {::specs/username "asdf"}])
-      #_(async/<! (async/timeout 5000))
-      (async/>! command-ch [:page {::specs/username "sss1"}])
+      #_(async/<! (async/timeout 1000))
+      #_(async/>! command-ch [:page {::specs/username "sss1"}])
+      #_(async/>! command-ch [:page {:new true :title "" :description "" :body "" :tagList []}])
+      #_(async/>! command-ch [:new-article {:new         true
+                                            :title       "It's new foo"
+                                            :description "When your bar is old"
+                                            :body        "# Mark it down"
+                                            :tagList     ["foo"]}])
+      #_(async/>! command-ch [:page {:description    "When your bar is old"
+                                   :slug           "it-s-new-foo-dfsy04"
+                                   :updatedAt      "2018-01-09T20:50:00.700Z"
+                                   :createdAt      "2018-01-09T20:50:00.700Z"
+                                   :title          "It's new foo"
+                                   :author         {:username "sparkofreason", :bio nil, :image "https://static.productionready.io/images/smiley-cyrus.jpg", :following false}
+                                   :favoritesCount 0
+                                   :body           "# Mark it down"
+                                   :favorited      false
+                                   :tagList        ["foo"]}])
+      #_(async/>! command-ch [:update-article {:description    "When your bar is old"
+                                             :slug           "it-s-new-foo-dfsy04"
+                                             :updatedAt      "2018-01-09T20:50:00.700Z"
+                                             :createdAt      "2018-01-09T20:50:00.700Z"
+                                             :title          "Not so new foo"
+                                             :author         {:username "sparkofreason", :bio nil, :image "https://static.productionready.io/images/smiley-cyrus.jpg", :following false}
+                                             :favoritesCount 0
+                                             :body           "# Mark it down\n ## Foo me up, Scotty!"
+                                             :favorited      false
+                                             :tagList        ["foo" "bar"]}])
+      #_(async/>! command-ch [:page {::specs/slug "it-s-new-foo-z7kdmw"}])
+      #_(async/<! (async/timeout 1000))
+      #_(async/>! command-ch [:delete-article {:slug "it-s-new-foo-z7kdmw"}])
       #_(async/>! command-ch [:page :home])
       #_(async/<! (async/timeout 5000))
       #_(async/close! command-ch)
@@ -70,18 +99,18 @@
 
 (if token
   (effects/http-effect nil
-    {:method          :get
-     :uri             (conduit/endpoint "user")             ;; evaluates to "api/articles/"
-     :headers         (conduit/auth-header token)           ;; get and pass user token obtained during login
-     :response-format (ajax/json-response-format {:keywords? true}) ;; json response and all keys to keywords
-     :on-success      (fn [result]
-                        (let [s (-> session
-                                    (rules/insert ::specs/User (:user result))
-                                    (rules/insert ::specs/Token {::specs/token (-> result :user :token)})
-                                    (rules/insert ::specs/Filter {::specs/feed true})
-                                    (rules/fire-rules))]
-                          (start s)))
-     :on-failure      #(println %)})
+                       {:method          :get
+                        :uri             (conduit/endpoint "user") ;; evaluates to "api/articles/"
+                        :headers         (conduit/auth-header token) ;; get and pass user token obtained during login
+                        :response-format (ajax/json-response-format {:keywords? true}) ;; json response and all keys to keywords
+                        :on-success      (fn [result]
+                                           (let [s (-> session
+                                                       (rules/insert ::specs/User (:user result))
+                                                       (rules/insert ::specs/Token {::specs/token (-> result :user :token)})
+                                                       (rules/insert ::specs/Filter {::specs/feed true})
+                                                       (rules/fire-rules))]
+                                             (start s)))
+                        :on-failure      #(println %)})
   (start (-> session
              (rules/insert ::specs/Token {::specs/token nil})
              (rules/insert ::specs/Filter {::specs/feed false})

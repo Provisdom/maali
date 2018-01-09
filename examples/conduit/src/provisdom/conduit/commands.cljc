@@ -15,13 +15,19 @@
 (s/def ::page (s/cat :command #{:page} :page ::specs/page))
 (s/def ::new-comment (s/cat :command #{:new-comment} :body ::specs/body))
 (s/def ::delete-comment (s/cat :command #{:delete-comment} :id ::specs/id))
+(s/def ::new-article (s/cat :command #{:new-article} :article ::specs/NewArticle))
+(s/def ::update-article (s/cat :command #{:update-article} :article ::specs/UpdatedArticle))
+(s/def ::delete-article (s/cat :command #{:delete-article} :article ::specs/DeletedArticle))
 (s/def ::command (s/or ::init ::init
                        ::upsert ::upsert
                        ::pending ::pending
                        ::response ::response
                        ::page ::page
                        ::new-comment ::new-comment
-                       ::delete-comment ::delete-comment))
+                       ::delete-comment ::delete-comment
+                       ::new-article ::new-article
+                       ::update-article ::update-article
+                       ::delete-article ::delete-article))
 
 ;;; Reduction function to update clara session state
 (defn handle-state-command
@@ -36,11 +42,14 @@
                                                          (rules/upsert session (or old-spec new-spec) old-value new-value))
            ::pending {:keys [request]} (rules/insert session ::specs/Pending {::specs/request request})
            ::response {:keys [response]} (rules/insert session ::specs/Response response)
-           ::page {[_ page] :page} (rules/upsert-q session ::specs/ActivePage
-                                                   (rules/query-fn ::conduit/active-page :?active-page)
-                                                   merge {::specs/page page})
+           ::page {:keys [page]} (rules/upsert-q session ::specs/ActivePage
+                                                 (rules/query-fn ::conduit/active-page :?active-page)
+                                                 merge {::specs/page (s/unform ::specs/page page)})
            ::new-comment {:keys [body]} (rules/insert session ::specs/NewComment {:body body})
-           ::delete-comment {:keys [id]} (rules/insert session ::specs/DeletedComment {:id id})))
+           ::delete-comment {:keys [id]} (rules/insert session ::specs/DeletedComment {:id id})
+           ::new-article {:keys [article]} (rules/insert session ::specs/NewArticle article)
+           ::update-article {:keys [article]} (rules/insert session ::specs/UpdatedArticle article)
+           ::delete-article {:keys [article]} (rules/insert session ::specs/DeletedArticle article)))
 
 (s/fdef handle-state-command
         :args (s/cat :session rules/session? :command ::command)

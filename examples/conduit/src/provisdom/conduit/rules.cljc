@@ -1,5 +1,6 @@
 (ns provisdom.conduit.rules
   (:require [clojure.spec.alpha :as s]
+            [cljs.core.async :as async]
             [lambdaisland.uniontypes #?(:clj :refer :cljs :refer-macros) [case-of]]
             [provisdom.conduit.specs :as specs]
             [provisdom.conduit.effects :as effects]
@@ -52,7 +53,7 @@
                   :uri    (endpoint "tags")}]
      (rules/insert! ::specs/Request #::specs{:request-type :tags
                                              :request      request})
-     (effects/http-effect command-ch request))]
+     (effects/http-effect ?command-ch request))]
 
   [::tags-response!
    [::specs/Request (= :tags request-type) (= ?request request)]
@@ -171,22 +172,23 @@
   [::edit-article-response!
    [::specs/Request (= :editor request-type) (= ?request request) (= ?article-edit request-data)]
    [::specs/Response (= ?request request) (= ?response response)]
+   [::specs/AppData (= ?command-ch command-ch)]
    =>
    (lambdaisland.uniontypes/case-of ::specs/ArticleEdit ?article-edit
             ::specs/NewArticle _
             (do
-              (rules/insert-unconditional! ::specs/ActivePage {::specs/slug (-> ?response :article :slug)})
+              (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
               (rules/retract! ::specs/NewArticle ?article-edit))
 
             ::specs/UpdatedArticle _
             (do
-              (rules/insert-unconditional! ::specs/ActivePage {::specs/slug (-> ?response :article :slug)})
+              (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
               (rules/retract! ::specs/UpdatedArticle ?article-edit))
 
             ::specs/DeletedArticle _
             (do
-              (rules/insert-unconditional! ::specs/ActivePage :home)
-              (rules/retract! ::specs/UpdatedArticle ?article-edit)))])
+              (async/put! ?command-ch [:page :home])
+              (rules/retract! ::specs/DeletedArticle ?article-edit)))])
 
 (defrules comment-edit-rules
   [::new-comment!

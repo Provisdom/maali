@@ -9,7 +9,7 @@
 (s/def ::page (s/or :home #{:home}
                     :profile (s/keys :req [::username])
                     :article (s/keys :req [::slug])
-                    :editor (s/or :new-article ::NewArticle :existing-article ::UpdatedArticle)
+                    :editor (s/or ::NewArticle ::NewArticle ::UpdatedArticle ::UpdatedArticle)
                     :login #{:login}
                     :register #{:register}
                     :settings #{:settings}
@@ -54,9 +54,10 @@
 (s/def ::updatedAt string?)
 (s/def ::Article (s/keys :req-un [::author ::body ::createdAt ::description ::favorited ::favoritesCount
                                ::slug ::tagList ::title ::updatedAt]))
-(s/def ::NewArticle (s/keys :req-un [::body ::description ::tagList ::title]))
+(s/def ::new boolean?)
+(s/def ::NewArticle (s/keys :req-un [::new ::body ::description ::tagList ::title]))
 (s/def ::UpdatedArticle ::Article)
-(s/def ::DeletedArticle (s/keys ::req-un [::slug]))
+(s/def ::DeletedArticle (s/keys :req-un [::slug]))
 (s/def ::ArticleEdit (s/or ::NewArticle ::NewArticle
                            ::UpdatedArticle ::UpdatedArticle
                            ::DeletedArticle ::DeletedArticle))
@@ -102,7 +103,7 @@
 
 ;;; Requests to server
 (s/def ::request map?)
-(s/def ::request-type #{:articles :article :comments :profile :tags})
+(s/def ::request-type #{:articles :article :editor :comments :profile :tags})
 (s/def ::request-data any?)
 (s/def ::Request (s/keys :req [::request ::request-type] :opt [::request-data]))
 (s/def ::Pending (s/keys :req [::request]))
