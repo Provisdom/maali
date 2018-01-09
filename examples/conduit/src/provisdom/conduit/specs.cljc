@@ -1,12 +1,15 @@
 (ns provisdom.conduit.specs
   (:require [clojure.spec.alpha :as s]))
 
+(s/def ::command-ch any?)                                   ;;
+(s/def ::AppData (s/keys :req [::command-ch]))
+
 (s/def ::count nat-int?)
 
 (s/def ::page (s/or :home #{:home}
                     :profile (s/keys :req [::username])
                     :article (s/keys :req [::slug])
-                    :editor ::Article
+                    :editor (s/or :new-article ::NewArticle :existing-article ::UpdatedArticle)
                     :login #{:login}
                     :register #{:register}
                     :settings #{:settings}
@@ -51,23 +54,22 @@
 (s/def ::updatedAt string?)
 (s/def ::Article (s/keys :req-un [::author ::body ::createdAt ::description ::favorited ::favoritesCount
                                ::slug ::tagList ::title ::updatedAt]))
+(s/def ::NewArticle (s/keys :req-un [::body ::description ::tagList ::title]))
+(s/def ::UpdatedArticle ::Article)
+(s/def ::DeletedArticle (s/keys ::req-un [::slug]))
+(s/def ::ArticleEdit (s/or ::NewArticle ::NewArticle
+                           ::UpdatedArticle ::UpdatedArticle
+                           ::DeletedArticle ::DeletedArticle))
+
+(s/def ::can-edit boolean?)
+(s/def ::CanEdit (s/keys :req [::slug ::can-edit]))
 
 (s/def ::id int?)
 (s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id]))
-(s/def ::NewComment (s/keys :req [::body]))
-(s/def ::DeletedComment (s/keys :req [::id]))
-(s/def ::edit (s/or ::NewComment ::DeletedComment))
-(s/def ::CommentsEdit (s/keys :req [::edit]))
-
-(s/def ::ActiveArticle (s/keys :req [::slug]))
-
+(s/def ::NewComment (s/keys :req-un [::body]))
+(s/def ::DeletedComment (s/keys :req-un [::id]))
+(s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
 (s/def ::ArticleCount (s/keys :req [::count]))
-
-(s/def ::section #{:articles :article :tags :comments :login :profile
-                   :register-user :update-user :toggle-follow-user
-                   :toggle-favorite-article})
-
-(s/def ::Loading (s/keys :req [::section]))
 
 (s/def ::offset ::count)
 (s/def ::favorites boolean?)
@@ -81,7 +83,6 @@
 (s/def ::Hash (s/keys :req [::hash]))
 
 (s/def ::Entity (s/or ::ActivePage ::ActivePage
-                      ::ActiveArticle ::ActiveArticle
                       ::User ::User
                       ::Profile ::Profile
                       ::Tag ::Tag
@@ -92,6 +93,12 @@
                       ::Filter ::Filter
                       ::Error ::Error
                       ::Hash ::Hash))
+
+(s/def ::section #{:articles :article :editor :tags :comments :login :profile
+                   :register-user :update-user :toggle-follow-user
+                   :toggle-favorite-article})
+
+(s/def ::Loading (s/keys :req [::section]))
 
 ;;; Requests to server
 (s/def ::request map?)

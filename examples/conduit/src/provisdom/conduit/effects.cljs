@@ -8,7 +8,7 @@
             [cljs.spec.alpha :as s]
             [provisdom.conduit.specs :as specs]
             [provisdom.conduit.view :as view]
-            [clojure.string :as str]))
+            [cljs.core.async :as async]))
 
 (defn ajax-xhrio-handler
   "ajax-request only provides a single handler for success and errors"
@@ -42,49 +42,19 @@
                             api))
         (dissoc :on-success :on-failure))))
 
+#_(def ^:dynamic command-ch (async/chan 1))
+
 (defn http-effect
-  [request]
-  (-> request
-      (merge {})
-      request->xhrio-options
-      ajax/ajax-request))
+  [command-ch {:keys [on-success on-failure] :as request}]
+  (let [request' (cond-> request
+                         (#{:post :put :delete} (:method request)) (assoc :format (ajax/json-request-format))
+                         true (assoc :response-format (ajax/json-response-format {:keywords? true})
+                                     :on-success (or
+                                                   on-success
+                                                   (fn [%] (async/put! command-ch [:response #::specs{:response % :request request}])))
+                                     :on-failure (or on-failure #(println %))))]
+    (-> request'
+        (merge {})
+        request->xhrio-options
+        ajax/ajax-request)))
 
-;;; Effects commands
-(s/def ::no-op (s/cat :command #{:no-op}))
-(s/def ::request (s/cat :command #{:request} :request ::specs/request))
-(s/def ::render (s/cat :command #{:render} :target ::view/target))
-
-(s/def ::effect (s/or ::no-op ::no-op
-                      ::request ::request
-                      ::render ::render))
-
-(s/def ::effects (s/or :single ::effect
-                       :multiple (s/coll-of ::effects)))
-
-(defn handle-effects*
-  [command-ch effect]
-  (case-of ::effects effect
-           :multiple _ (vec (mapcat (partial handle-effects* command-ch) effect))
-           :single _
-           (case-of ::effect effect
-
-                    ::no-op _ nil
-
-                    ::request {:keys [request]}
-                    (let [request' (cond-> request
-                                           (#{:post :put :delete} (:method request)) (assoc :format (ajax/json-request-format))
-                                           true (assoc :response-format (ajax/json-response-format {:keywords? true})
-                                                       :on-success (fn [%] (async/put! command-ch [[:response #::specs{:response % :request request}]]))
-                                                       :on-failure #(println %)))]
-                      (http-effect request')
-                      [[:pending request]])
-
-                    ::render {[_ {:keys [var val]}] :target} (view/render var val))))
-
-(defn handle-effects
-  [command-ch effects]
-  (let [commands (handle-effects* command-ch effects)]
-    commands
-    #_(if (seq commands)
-        commands
-        #_(async/put! command-ch commands))))

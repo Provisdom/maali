@@ -44,6 +44,6 @@
 
 (rules/query s4 ::conduit/comments-response)
 (rules/query s4 ::conduit/comments)
-(enable-console-print!)
+#_(enable-console-print!)
 (inspect/explain-activations s4)
 (:rule-matches (inspect/inspect s4))

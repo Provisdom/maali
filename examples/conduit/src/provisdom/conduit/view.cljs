@@ -10,15 +10,21 @@
 (s/def ::page (s/cat :var #{:page} :val ::specs/page-name))
 (s/def ::article (s/cat :var #{:article} :val (s/nilable ::specs/Article)))
 (s/def ::profile (s/cat :var #{:profile} :val (s/nilable ::specs/Profile)))
+(s/def ::can-edit (s/cat :var #{:can-edit} :val ::specs/can-edit))
 (s/def ::target (s/alt ::articles ::articles
                        ::article-count ::article-count
                        ::page ::page
                        ::tags ::tags
                        ::article ::article
+                       ::can-edit ::can-edit
                        ::comments ::comments
                        ::profile ::profile
                        ::loading ::loading))
 
 (defn render
   [var val]
-  (println "RENDER" var val))
+  (.log js/console "RENDER" (pr-str var) (pr-str val)))
+
+(s/fdef render
+        :args ::target
+        :ret any?)

@@ -14,7 +14,7 @@
 
 #_(enable-console-print!)
 
-(set! (.-onerror js/window) #(do
+#_(set! (.-onerror js/window) #(do
                                (println "FAARK!!!!!!!!!!!!!!!!!")
                                (when-let [explanation (-> % ex-data :explanation)] (pprint explanation))
                                (pprint %)))

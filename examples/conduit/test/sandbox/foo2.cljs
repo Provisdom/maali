@@ -12,7 +12,8 @@
             [cljs.core.async :as async]
             [ajax.core :as ajax]
             [clojure.spec.alpha :as s]
-            [provisdom.maali.pprint :refer-macros [pprint]]))
+            [provisdom.maali.pprint :refer-macros [pprint]]
+            [clara.tools.inspect :as inspect]))
 
 (def conduit-user-key "jwtToken")
 #_(.setItem js/localStorage conduit-user-key "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6MTk2MzMsInVzZXJuYW1lIjoic3BhcmtvZnJlYXNvbiIsImV4cCI6MTUyMDI4NTcyOX0.nJ-ER1GW2rful2y-tQqaBg0KR5zCUcaOnRGuVGdoGI4")
@@ -21,8 +22,10 @@
 (defsession session [provisdom.conduit.rules/http-handling-rules
                      provisdom.conduit.rules/home-page-rules
                      provisdom.conduit.rules/article-page-rules
+                     provisdom.conduit.rules/article-edit-rules
                      provisdom.conduit.rules/comment-edit-rules
                      provisdom.conduit.rules/profile-page-rules
+                     provisdom.conduit.rules/view-update-rules
                      provisdom.conduit.rules/queries]
             {:fact-type-fn rules/spec-type})
 
@@ -37,55 +40,36 @@
        (xf result input)))))
 
 (defn start
-  [session init-filter]
-  (let [command-log (log-xf (fn [command]
-                              (println "COMMAND" command)
-                              #_(s/explain ::commands/command command)))
-        query-log (log-xf (fn [query-result]
-                            (println "QUERY" query-result)))
-        effect-log (log-xf (fn [effects]
-                             (println "EFFECTS" effects)
-                             (when effects
-                               (s/explain ::effects/effects effects))))
-        command-ch (async/chan 1)
-        xf (comp #_command-log
-                 commands/update-state-xf
-                 listeners/query-bindings-xf
-                 query-log
-                 commands/query-result-xf
-                 #_effect-log
-                 (map (partial effects/handle-effects command-ch)))
-        debug-xf (comp command-log
-                       commands/debug-update-state-xf
-                       listeners/query-bindings-xf
-                       commands/query-result-xf
-                       (map (partial effects/handle-effects command-ch)))
-        command->effects-ch (async/chan 1 xf)]
-    (async/go-loop [command [[:init session]]]
-      (loop [command command]
-        (when (seq command)
-          (async/>! command->effects-ch command)
-          (recur (async/<! command->effects-ch))))
-      (recur (async/<! command-ch))
-      #_(when effects
-        (effects/handle-effects command-ch effects)
-        (recur (async/<! effect-ch))))
+  [session]
+  (let [command-ch (async/chan 100)
+        session (-> session
+                    (rules/insert ::specs/AppData {::specs/command-ch command-ch})
+                    (rules/fire-rules))]
+    (async/go-loop [session session
+                    command (async/<! command-ch)]
+      (when command
+        (.log js/console "COMMODE" (pr-str command))
+        (let [session (commands/update-state session command)]
+          #_(inspect/explain-activations session)
+          (recur session (async/<! command-ch)))))
     (async/go
-      (async/>! command-ch [[:init session]])
-      (async/>! command-ch [[:upsert nil init-filter]
-                            [:page :home]])
-      (async/<! (async/timeout 1000))
-      (async/>! command-ch [[:page {::specs/slug "asdf"}]])
-      (async/<! (async/timeout 1000))
-      #_(async/>! command-ch [[:new-comment "I'm new here"]])
-      (async/>! command-ch [[:delete-comment 9380]])
-      #_(async/>! command-ch [[:page {::specs/username "asdf"}]])
+      (async/>! command-ch [:init session])
+      #_(async/>! command-ch [:page :home])
       #_(async/<! (async/timeout 1000))
-      #_(async/>! command-ch [[:page :home]]))
-    #_(async/close! command-ch)))
+      #_(async/>! command-ch [:page {::specs/slug "asdf"}])
+      #_(async/<! (async/timeout 1000))
+      #_(async/>! command-ch [:new-comment "I'm new here"])
+      #_(async/>! command-ch [:delete-comment 9397])
+      #_(async/>! command-ch [:page {::specs/username "asdf"}])
+      #_(async/<! (async/timeout 5000))
+      (async/>! command-ch [:page {::specs/username "sss1"}])
+      #_(async/>! command-ch [:page :home])
+      #_(async/<! (async/timeout 5000))
+      #_(async/close! command-ch)
+      #_(println "*******************************************"))))
 
 (if token
-  (effects/http-effect
+  (effects/http-effect nil
     {:method          :get
      :uri             (conduit/endpoint "user")             ;; evaluates to "api/articles/"
      :headers         (conduit/auth-header token)           ;; get and pass user token obtained during login
@@ -94,13 +78,11 @@
                         (let [s (-> session
                                     (rules/insert ::specs/User (:user result))
                                     (rules/insert ::specs/Token {::specs/token (-> result :user :token)})
+                                    (rules/insert ::specs/Filter {::specs/feed true})
                                     (rules/fire-rules))]
-                          (start s {::specs/feed true})))
+                          (start s)))
      :on-failure      #(println %)})
   (start (-> session
              (rules/insert ::specs/Token {::specs/token nil})
-             (rules/insert ::specs/Feed {::specs/feed :global})
-             (rules/fire-rules))
-         {::specs/feed false}))
-
-#_(effects/get-articles {} nil)
+             (rules/insert ::specs/Filter {::specs/feed false})
+             (rules/fire-rules))))

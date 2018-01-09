@@ -4,9 +4,8 @@
             [net.cgrand.xforms :as xforms]
             [provisdom.conduit.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defsession] :as rules]
-            [provisdom.conduit.rules :as conduit]
-            [provisdom.maali.listeners :as listeners]
-            [clojure.string :as str]))
+            [provisdom.maali.tracing :as tracing]
+            [provisdom.conduit.rules :as conduit]))
 
 ;;; Model command specs
 (s/def ::init (s/cat :command #{:init} :init-session rules/session?))
@@ -40,64 +39,26 @@
            ::page {[_ page] :page} (rules/upsert-q session ::specs/ActivePage
                                                    (rules/query-fn ::conduit/active-page :?active-page)
                                                    merge {::specs/page page})
-           ::new-comment {:keys [body]} (rules/insert session ::specs/NewComment {::specs/body body})
-           ::delete-comment {:keys [id]} (rules/insert session ::specs/DeletedComment {::specs/id id})))
+           ::new-comment {:keys [body]} (rules/insert session ::specs/NewComment {:body body})
+           ::delete-comment {:keys [id]} (rules/insert session ::specs/DeletedComment {:id id})))
 
 (s/fdef handle-state-command
         :args (s/cat :session rules/session? :command ::command)
         :ret rules/session?)
 
-(defn handle-state-commands
-  [session commands]
-  (reduce handle-state-command session commands))
-
-(s/fdef handle-state-commands
-        :args (s/cat :session rules/session? :commands (s/coll-of ::command))
-        :ret rules/session?)
-
-(def update-state (listeners/update-with-query-listener-fn handle-state-commands))
-(def debug-update-state (listeners/debug-update-with-query-listener-fn handle-state-commands))
+(def update-state (fn [session command]
+                    (-> session
+                        (handle-state-command command)
+                        (rules/fire-rules))))
+(def debug-update-state (fn [session command]
+                          (if session
+                            (-> session
+                                (tracing/with-tracing)
+                                (handle-state-command command)
+                                (rules/fire-rules)
+                                (tracing/print-trace))
+                            (-> session
+                                (handle-state-command command)
+                                (rules/fire-rules)))))
 (def update-state-xf (comp (xforms/reductions update-state nil) (drop 1)))
 (def debug-update-state-xf (comp (xforms/reductions debug-update-state nil) (drop 1)))
-
-(defn query-result->effect
-  [query-result]
-  (case-of ::conduit/query-result query-result
-
-           ::conduit/request
-           {:keys [result]}
-           (mapv (fn [{:keys [?request]}] [:request ?request]) result)
-
-           ::conduit/loading
-           {:keys [result]}
-           [:render :loading (mapv :?section result)]
-
-           ::conduit/active-page
-           {[{[?page _] :?page} & _] :result}
-           [:render :page ?page]
-
-           ::conduit/tags
-           {:keys [result]}
-           [:render :tags (mapv :?tag result)]
-
-           ::conduit/articles
-           {:keys [result]}
-           [:render :articles (mapv :?article result)]
-
-           ::conduit/article-count
-           {[{:keys [?count]} & _] :result}
-           [:render :article-count (or ?count 0)]
-
-           ::conduit/active-article
-           {[{:keys [?article]} & _] :result}
-           [:render :article ?article]
-
-           ::conduit/comments
-           {:keys [result]}
-           [:render :comments (mapv :?comment result)]
-
-           ::conduit/profile
-           {[{:keys [?profile]} & _] :result}
-           [:render :profile ?profile]))
-
-(def query-result-xf (map #(sequence (comp (map query-result->effect) (filter seq)) %)))

@@ -68,7 +68,7 @@
         ~@body)))
 
 #?(:clj
-   (def productions (atom {})))
+   (defonce productions (atom {})))
 
 #?(:clj
    (defn resolve-spec-form
