@@ -28,8 +28,8 @@
    =>
    (rules/insert! ::specs/Loading #::specs{:section ?section})]
 
-  ;;; Clean up responses so they don't leak memory
-  #_[::retracted-request!
+  ;;; Clean up responses so they don't leak memory.
+  [::retracted-request!
    [?response <- ::specs/Response (= ?request request)]
    [:not [::specs/Request (= ?request request)]]
    =>
@@ -110,19 +110,21 @@
    =>
    (apply rules/insert! ::specs/Comment (:comments ?response))]
 
+  ;;; TODO - do we need ::specs/CanEdit?
   [::can-edit-article!
    [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [::specs/Article (= ?slug slug) (= ?username (:username author))]
+   [?article <- ::specs/Article (= ?slug slug) (= ?author (:username author))]
    [::specs/User (= ?username username)]
    =>
-   (rules/insert! ::specs/CanEdit #::specs{:can-edit true, :slug ?slug})]
+   (rules/upsert! ?article (assoc ?article ::specs/can-edit (= ?author ?username)))]
 
-  [::cannot-edit-article!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [::specs/Article (= ?slug slug) (= ?username (:username author))]
-   [:not [::specs/User (= ?username username)]]
+  [::can-edit-comment!
+   [::specs/ActivePage (= :article (specs/page-name page))]
+   [?comment <- ::specs/Comment (= ?author (:username author))]
+   [::specs/User (= ?username username)]
    =>
-   (rules/insert! ::specs/CanEdit #::specs{:can-edit false, :slug ?slug})])
+   (rules/upsert! ?comment (assoc ?comment ::specs/can-edit (= ?author ?username)))]
+  )
 
 (defrules article-edit-rules
   [::new-article!
@@ -220,21 +222,22 @@
                                              :request      request})
      (effects/http-effect ?command-ch request))]
 
-  [::comment-edit-response!
-   [::specs/Request (= :comments request-type) (= ?request request) (= ?comment-edit request-data)]
+  [::new-comment-response!
+   [::specs/Request (= :comments request-type) (= ?request request) (= ?new-comment request-data)]
    [::specs/Response (= ?request request) (= ?response response)]
-   [:test (s/valid? ::specs/CommentEdit ?comment-edit)]
+   [?new-comment <- ::specs/NewComment]
    =>
-   (lambdaisland.uniontypes/case-of ::specs/CommentEdit ?comment-edit
-            ::specs/NewComment _
-            (do
-              (rules/insert! ::specs/Comment (:comment ?response))
-              (rules/retract! ::specs/NewComment ?comment-edit))
+   (rules/insert! ::specs/Comment (:comment ?response))
+   (rules/retract! ::specs/NewComment ?new-comment)]
 
-            ::specs/DeletedComment _
-            (do
-              (rules/retract! ::specs/Comment (:id ?comment-edit))
-              (rules/retract! ::specs/DeletedComment ?comment-edit)))])
+  [::delete-comment-response!
+   [::specs/Request (= :comments request-type) (= ?request request) (= ?deleted-comment request-data)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   [?deleted-comment <- ::specs/NewComment (= ?id id)]
+   [?comment <- ::specs/Comment (= ?id id)]
+   =>
+   (rules/retract! ::specs/Comment ?comment)
+   (rules/retract! ::specs/DeletedComment ?deleted-comment)])
 
 (defrules profile-page-rules
   [::profile!
@@ -287,12 +290,6 @@
    =>
    (view/render :article ?article)
    (view/render :comments ?comments)]
-
-  [::render-can-edit!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [::specs/CanEdit (= ?slug slug) (= ?can-edit can-edit)]
-   =>
-   (view/render :can-edit ?can-edit)]
 
   [::render-profile!
    [::specs/ActivePage (= :profile (specs/page-name page))]

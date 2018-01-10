@@ -53,7 +53,8 @@
 (s/def ::title string?)
 (s/def ::updatedAt string?)
 (s/def ::Article (s/keys :req-un [::author ::body ::createdAt ::description ::favorited ::favoritesCount
-                               ::slug ::tagList ::title ::updatedAt]))
+                               ::slug ::tagList ::title ::updatedAt]
+                         :opt [::can-edit]))
 (s/def ::new boolean?)
 (s/def ::NewArticle (s/keys :req-un [::new ::body ::description ::tagList ::title]))
 (s/def ::UpdatedArticle ::Article)
@@ -66,7 +67,7 @@
 (s/def ::CanEdit (s/keys :req [::slug ::can-edit]))
 
 (s/def ::id int?)
-(s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id]))
+(s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id] :opt [::can-edit]))
 (s/def ::NewComment (s/keys :req-un [::body]))
 (s/def ::DeletedComment (s/keys :req-un [::id]))
 (s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
