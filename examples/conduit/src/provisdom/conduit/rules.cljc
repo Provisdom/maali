@@ -110,7 +110,7 @@
    =>
    (apply rules/insert! ::specs/Comment (:comments ?response))]
 
-  ;;; TODO - do we need ::specs/CanEdit?
+  ;;; TODO - For theses can-edit rules to work, ::User must always exist with ::username
   [::can-edit-article!
    [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
    [?article <- ::specs/Article (= ?slug slug) (= ?author (:username author))]
