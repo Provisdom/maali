@@ -6,28 +6,6 @@
 
 (s/def ::count nat-int?)
 
-(s/def ::page (s/or :home #{:home}
-                    :profile (s/keys :req [::username])
-                    :article (s/keys :req [::slug])
-                    :editor (s/or ::NewArticle ::NewArticle ::UpdatedArticle ::UpdatedArticle)
-                    :login #{:login}
-                    :register #{:register}
-                    :settings #{:settings}
-                    :favorited #{:favorited}))
-
-(defn page-name
-  [page]
-  (let [[page-name _] (s/conform ::page page)]
-    page-name))
-
-(s/def ::ActivePage (s/keys :req [::page]))
-(s/def ::page-name (->> (s/form ::page)
-                       (drop 1)
-                       (partition 2)
-                       (map first)
-                       set))
-(s/def ::PageName (s/keys :req [::page-name]))
-
 (s/def ::token (s/nilable string?))
 (s/def ::Token (s/keys :req [::token]))
 
@@ -38,6 +16,15 @@
 (s/def ::following boolean?)
 (s/def ::Profile (s/keys :req-un [::username ::image ::bio] :opt-un [::following]))
 (s/def ::User ::Profile)
+
+(s/def ::password string?)
+(s/def ::Login (s/keys :req [::email ::password]))
+(s/def ::NewUser (s/merge ::Login (s/keys :req [::username])))
+(s/def ::UpdatedUser (s/keys :req [::username ::email ::image ::bio] :opt [::password]))
+(s/def ::UserReq (s/keys))
+(derive ::Login ::UserReq)
+(derive ::NewUser ::UserReq)
+(derive ::UpdatedUser ::UserReq)
 
 (s/def ::tag string?)
 (s/def ::Tag (s/keys :req [::tag]))
@@ -64,7 +51,6 @@
                            ::DeletedArticle ::DeletedArticle))
 
 (s/def ::can-edit boolean?)
-(s/def ::CanEdit (s/keys :req [::slug ::can-edit]))
 
 (s/def ::id int?)
 (s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id] :opt [::can-edit]))
@@ -73,41 +59,41 @@
 (s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
 (s/def ::ArticleCount (s/keys :req [::count]))
 
-(s/def ::offset ::count)
-(s/def ::favorites boolean?)
-(s/def ::feed boolean?)
-(s/def ::Filter (s/keys :opt [::username ::tag ::offset ::favorites ::favorited ::feed]))
-
 (s/def ::error (s/tuple keyword? string?))
 (s/def ::Error (s/keys :req [::error]))
 
 (s/def ::hash string?)
-(s/def ::Hash (s/keys :req [::hash]))
 
-(s/def ::Entity (s/or ::ActivePage ::ActivePage
-                      ::User ::User
-                      ::Profile ::Profile
-                      ::Tag ::Tag
-                      ::Article ::Article
-                      ::Comment ::Comment
-                      ::ArticleCount ::ArticleCount
-                      ::Loading ::Loading
-                      ::Filter ::Filter
-                      ::Error ::Error
-                      ::Hash ::Hash))
+(s/def ::offset ::count)
+(s/def ::feed boolean?)
+(s/def ::limit pos-int?)
+(s/def ::base-filter (s/keys :req [::offset ::limit]))
+(s/def ::home-filter (s/merge ::base-filter (s/keys :opt [::feed ::tag])))
+(s/def ::favorited-user ::username)
+(s/def ::profile-filter (s/merge ::base-filter (s/keys :opt [::favorited-user ::username])))
 
-(s/def ::section #{:articles :article :editor :tags :comments :login :profile
-                   :register-user :update-user :toggle-follow-user
-                   :toggle-favorite-article})
+(s/def ::page (s/or :home ::home-filter
+                    :profile (s/keys :req [::username ::profile-filter])
+                    :article (s/keys :req [::slug])
+                    :editor (s/or ::NewArticle ::NewArticle ::UpdatedArticle ::UpdatedArticle)
+                    :login #{:login}
+                    :register #{:register}
+                    :settings #{:settings}))
 
-(s/def ::Loading (s/keys :req [::section]))
+(defn page-name
+  [page]
+  (let [[page-name _] (s/conform ::page page)]
+    page-name))
+
+(s/def ::ActivePage (s/keys :req [::page]))
 
 ;;; Requests to server
 (s/def ::request map?)
-(s/def ::request-type #{:articles :article :editor :comments :profile :tags})
+(s/def ::request-type #{:login :articles :article :editor :comments :profile
+                        :tags :toggle-follow-user :toggle-favorite-article})
 (s/def ::request-data any?)
 (s/def ::Request (s/keys :req [::request ::request-type] :opt [::request-data]))
-(s/def ::Pending (s/keys :req [::request]))
+(s/def ::Loading (s/keys :req [::request-type]))
 
 ;;; Responses from server
 (s/def ::response map?)

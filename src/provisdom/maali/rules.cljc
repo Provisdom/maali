@@ -84,7 +84,8 @@
        (if (or args (not (contains? c :type)))
          constraint
          (let [form (let [f (resolve-spec-form type)]
-                      (if (and (list? f) (= 'cljs.spec.alpha/keys (first f)))
+                      (if (and (list? f) (or (= 'cljs.spec.alpha/keys (first f))
+                                             (= 'cljs.spec.alpha/merge (first f))))
                         f
                         (throw (ex-info
                                  (str "Fact types must be spec'ed with s/keys: (s/def " type " " (pr-str f) ")")
@@ -197,36 +198,37 @@
 
 (defn upsert
   [session spec old-fact new-fact]
-  (cond-> session
-          old-fact (retract spec old-fact)
-          new-fact (insert spec new-fact)))
+  (when (not= old-fact new-fact)
+    (cond-> session
+            old-fact (retract spec old-fact)
+            new-fact (insert spec new-fact))))
 
 (defn upsert-q
   [session spec query-fn f & args]
   (let [items (query-fn session)
         new-items (when f (map #(apply f % args) items))
         s (if (not-empty items) (apply retract session spec items) session)
-        s' (if (not-empty new-items) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
+        s' (if (and (not-empty new-items) (not= new-items items)) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
     s'))
 
 (defn upsert!
-  ([spec old-fact new-fact]
-   (when old-fact
-     (retract! spec old-fact))
-   (when new-fact
-     (insert! spec new-fact))))
+  [spec old-fact new-fact]
+  (when old-fact
+    (retract! spec old-fact))
+  (when (and new-fact (not= old-fact new-fact))
+    (insert! spec new-fact)))
 
-(defn upsert-f!
+#_(defn upsert-f!
   [spec fact f & args]
   (retract! spec fact)
   (insert! spec (apply f fact args)))
 
 (defn upsert-unconditional!
-  ([spec fact]
-   (insert! spec fact))
-  ([spec fact f & args]
-   (retract! fact)
-   (insert-unconditional! spec (apply f fact args))))
+  [spec old-fact new-fact]
+  (when old-fact
+    (retract! spec old-fact))
+  (when new-fact
+    (insert-unconditional! spec new-fact)))
 
 (defn fire-rules
   [session]

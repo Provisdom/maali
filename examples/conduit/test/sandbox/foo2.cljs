@@ -15,16 +15,13 @@
             [provisdom.maali.pprint :refer-macros [pprint]]
             [clara.tools.inspect :as inspect]))
 
-(def conduit-user-key "jwtToken")
-#_(.setItem js/localStorage conduit-user-key "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6MTk2MzMsInVzZXJuYW1lIjoic3BhcmtvZnJlYXNvbiIsImV4cCI6MTUyMDI4NTcyOX0.nJ-ER1GW2rful2y-tQqaBg0KR5zCUcaOnRGuVGdoGI4")
-(def token (.getItem js/localStorage conduit-user-key))
-
 (defsession session [provisdom.conduit.rules/http-handling-rules
                      provisdom.conduit.rules/home-page-rules
                      provisdom.conduit.rules/article-page-rules
                      provisdom.conduit.rules/article-edit-rules
                      provisdom.conduit.rules/comment-edit-rules
                      provisdom.conduit.rules/profile-page-rules
+                     provisdom.conduit.rules/user-rules
                      provisdom.conduit.rules/view-update-rules
                      provisdom.conduit.rules/queries]
   {:fact-type-fn rules/spec-type})
@@ -41,28 +38,47 @@
 
 (defn start
   [session]
-  (let [command-ch (async/chan 100)
+  (let [token (.getItem js/localStorage conduit/token-key)
+        command-ch (async/chan 100)
         session (-> session
                     (rules/insert ::specs/AppData {::specs/command-ch command-ch})
                     (rules/fire-rules))]
     (async/go-loop [session session
                     command (async/<! command-ch)]
       (when command
-        (.log js/console "COMMAND" (pr-str command))
+        (println "COMMAND" (pr-str command))
         (let [session (commands/update-state session command)]
           #_(inspect/explain-activations session)
           (recur session (async/<! command-ch)))))
     (async/go
       (async/>! command-ch [:init session])
+      (async/>! command-ch [:set-token token])
+      (async/<! (async/timeout 2000))
+      (async/>! command-ch [:page :login])
+      (async/>! command-ch [:login {::specs/email "dave.d.dixon@gmail.com" ::specs/password "lovepump"}])
+      (async/<! (async/timeout 2000))
+      (async/>! command-ch [:update-user {::specs/email "dave.d.dixon@gmail.com"
+                                          ::specs/bio "Fnorb"
+                                          ::specs/username "sparkofreason"
+                                          ::specs/image nil}])
+
+      (async/<! (async/timeout 2000))
+      #_(async/>! command-ch [:logout])
       #_(async/>! command-ch [:page :home])
       #_(async/<! (async/timeout 1000))
       #_(async/>! command-ch [:page {::specs/slug "asdf"}])
       #_(async/<! (async/timeout 1000))
       #_(async/>! command-ch [:new-comment "I'm new here"])
       #_(async/>! command-ch [:delete-comment 9397])
-      #_(async/>! command-ch [:page {::specs/username "asdf"}])
+      #_(async/>! command-ch [:page {::specs/username "sparkofreason" ::specs/profile-filter {::specs/username "sparkofreason"
+                                                                                            ::specs/limit 10
+                                                                                            ::specs/offset 0}}])
       #_(async/<! (async/timeout 1000))
-      #_(async/>! command-ch [:page {::specs/username "sss1"}])
+      #_(async/>! command-ch [:page {::specs/username "sparkofreason" ::specs/profile-filter {::specs/favorited-user "sparkofreason"
+                                                                                            ::specs/limit 10
+                                                                                            ::specs/offset 0}}])
+      #_(async/<! (async/timeout 1000))
+      #_(async/>! command-ch [:page {::specs/username "sss1" ::specs/profile-view :my-articles}])
       #_(async/>! command-ch [:page {:new true :title "" :description "" :body "" :tagList []}])
       #_(async/>! command-ch [:new-article {:new         true
                                             :title       "It's new foo"
@@ -97,7 +113,8 @@
       #_(async/close! command-ch)
       #_(println "*******************************************"))))
 
-(if token
+(start session)
+#_(if token
   (effects/http-effect nil
                        {:method          :get
                         :uri             (conduit/endpoint "user") ;; evaluates to "api/articles/"
@@ -106,12 +123,12 @@
                         :on-success      (fn [result]
                                            (let [s (-> session
                                                        (rules/insert ::specs/User (:user result))
-                                                       (rules/insert ::specs/Token {::specs/token (-> result :user :token)})
-                                                       (rules/insert ::specs/Filter {::specs/feed true})
+                                                       (rules/insert ::specs/Token {::specs/token (-> result :user :token)
+                                                                                    ::specs/token-key conduit-user-key})
                                                        (rules/fire-rules))]
                                              (start s)))
                         :on-failure      #(println %)})
   (start (-> session
-             (rules/insert ::specs/Token {::specs/token nil})
-             (rules/insert ::specs/Filter {::specs/feed false})
+             (rules/insert ::specs/Token {::specs/token nil
+                                          ::specs/token-key conduit-user-key})
              (rules/fire-rules))))

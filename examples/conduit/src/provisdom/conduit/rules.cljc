@@ -11,6 +11,8 @@
 
 (def api-url "https://conduit.productionready.io/api")
 
+(def token-key "provisdom.conduit/jwtToken")
+
 (defn endpoint [& params]
   "Concat any params to api-url separated by /"
   (str/join "/" (concat [api-url] params)))
@@ -26,7 +28,7 @@
    [::specs/Request (= ?section request-type) (= ?request request)]
    [:not [::specs/Response (= ?request request)]]
    =>
-   (rules/insert! ::specs/Loading #::specs{:section ?section})]
+   (rules/insert! ::specs/Loading #::specs{:request-type ?section})]
 
   ;;; Clean up responses so they don't leak memory.
   [::retracted-request!
@@ -39,45 +41,41 @@
   [filter token]
   {:method  :get
    :uri     (if (::specs/feed filter) (endpoint "articles" "feed") (endpoint "articles"))
-   :params  (-> filter
-                (assoc :author (::specs/username filter))
-                (dissoc ::specs/username))
+   :params  (cond-> filter
+                    (::specs/username filter) (assoc :author (::specs/username filter))
+                    true (dissoc ::specs/username)
+                    (::specs/favorited-user filter) (assoc :favorited (::specs/favorited-user filter))
+                    true (dissoc ::specs/favorited-user))
    :headers (auth-header token)})
 
 (defrules home-page-rules
-  [::tags-request!
-   [::specs/ActivePage (= :home page)]
-   [::specs/AppData (= ?command-ch command-ch)]
-   =>
-   (let [request {:method :get
-                  :uri    (endpoint "tags")}]
-     (rules/insert! ::specs/Request #::specs{:request-type :tags
-                                             :request      request})
-     (effects/http-effect ?command-ch request))]
-
-  [::tags-response!
-   [::specs/Request (= :tags request-type) (= ?request request)]
-   [::specs/Response (= ?request request) (= ?response response)]
-   =>
-   (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))]
-
   [::articles-request!
-   [::specs/ActivePage (= :home (specs/page-name page))]
-   [?filter <- ::specs/Filter (= ?feed feed)]
+   [::specs/ActivePage (= :home (specs/page-name page)) (= ?filter page)]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [request (make-articles-request ?filter ?token)]
+   (let [tags-request {:method :get
+                       :uri    (endpoint "tags")}
+         articles-request (make-articles-request ?filter ?token)]
+     (rules/insert! ::specs/Request #::specs{:request-type :tags
+                                             :request      tags-request})
+     (effects/http-effect ?command-ch tags-request)
      (rules/insert! ::specs/Request #::specs{:request-type :articles
-                                             :request      request})
-     (effects/http-effect ?command-ch request))]
+                                             :request      articles-request})
+     (effects/http-effect ?command-ch articles-request))]
 
   [::articles-response!
    [::specs/Request (= :articles request-type) (= ?request request)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
    (rules/insert! ::specs/ArticleCount {::specs/count (:articlesCount ?response)})
-   (apply rules/insert! ::specs/Article (:articles ?response))])
+   (apply rules/insert! ::specs/Article (:articles ?response))]
+
+  [::tags-response!
+   [::specs/Request (= :tags request-type) (= ?request request)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   =>
+   (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))])
 
 (defrules article-page-rules
   [::article-request!
@@ -110,20 +108,33 @@
    =>
    (apply rules/insert! ::specs/Comment (:comments ?response))]
 
-  ;;; TODO - For theses can-edit rules to work, ::User must always exist with ::username
   [::can-edit-article!
    [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
    [?article <- ::specs/Article (= ?slug slug) (= ?author (:username author))]
    [::specs/User (= ?username username)]
    =>
-   (rules/upsert! ?article (assoc ?article ::specs/can-edit (= ?author ?username)))]
+   (rules/upsert! ::specs/Article ?article (assoc ?article ::specs/can-edit (= ?author ?username)))]
 
   [::can-edit-comment!
    [::specs/ActivePage (= :article (specs/page-name page))]
    [?comment <- ::specs/Comment (= ?author (:username author))]
    [::specs/User (= ?username username)]
    =>
-   (rules/upsert! ?comment (assoc ?comment ::specs/can-edit (= ?author ?username)))]
+   (rules/upsert! ::specs/Comment ?comment (assoc ?comment ::specs/can-edit (= ?author ?username)))]
+
+  [::cannot-edit-article!
+   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
+   [?article <- ::specs/Article (= ?slug slug)]
+   [:not [::specs/User]]
+   =>
+   (rules/upsert! ::specs/Article ?article (assoc ?article ::specs/can-edit false))]
+
+  [::cannot-edit-comment!
+   [::specs/ActivePage (= :article (specs/page-name page))]
+   [?comment <- ::specs/Comment]
+   [:not [::specs/User]]
+   =>
+   (rules/upsert! ::specs/Comment ?comment (assoc ?comment ::specs/can-edit false))]
   )
 
 (defrules article-edit-rules
@@ -134,7 +145,7 @@
    [::specs/AppData (= ?command-ch command-ch)]
    =>
    (let [request {:method  :post
-                  :uri     (endpoint "articles" )
+                  :uri     (endpoint "articles")
                   :params  {:article ?new-article}
                   :headers (auth-header ?token)}]
      (rules/insert! ::specs/Request #::specs{:request-type :editor
@@ -177,20 +188,20 @@
    [::specs/AppData (= ?command-ch command-ch)]
    =>
    (lambdaisland.uniontypes/case-of ::specs/ArticleEdit ?article-edit
-            ::specs/NewArticle _
-            (do
-              (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
-              (rules/retract! ::specs/NewArticle ?article-edit))
+                                    ::specs/NewArticle _
+                                    (do
+                                      (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
+                                      (rules/retract! ::specs/NewArticle ?article-edit))
 
-            ::specs/UpdatedArticle _
-            (do
-              (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
-              (rules/retract! ::specs/UpdatedArticle ?article-edit))
+                                    ::specs/UpdatedArticle _
+                                    (do
+                                      (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
+                                      (rules/retract! ::specs/UpdatedArticle ?article-edit))
 
-            ::specs/DeletedArticle _
-            (do
-              (async/put! ?command-ch [:page :home])
-              (rules/retract! ::specs/DeletedArticle ?article-edit)))])
+                                    ::specs/DeletedArticle _
+                                    (do
+                                      (async/put! ?command-ch [:page :home])
+                                      (rules/retract! ::specs/DeletedArticle ?article-edit)))])
 
 (defrules comment-edit-rules
   [::new-comment!
@@ -233,7 +244,7 @@
   [::delete-comment-response!
    [::specs/Request (= :comments request-type) (= ?request request) (= ?deleted-comment request-data)]
    [::specs/Response (= ?request request) (= ?response response)]
-   [?deleted-comment <- ::specs/NewComment (= ?id id)]
+   [?deleted-comment <- ::specs/DeletedComment (= ?id id)]
    [?comment <- ::specs/Comment (= ?id id)]
    =>
    (rules/retract! ::specs/Comment ?comment)
@@ -245,16 +256,25 @@
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [articles-request (make-articles-request {::specs/username ?username} ?token)
-         profile-request {:method  :get
+   (let [profile-request {:method  :get
                           :uri     (endpoint "profiles" ?username) ;; evaluates to "api/profiles/:profile"
                           :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :articles
-                                             :request      articles-request})
-     (effects/http-effect ?command-ch articles-request)
      (rules/insert! ::specs/Request #::specs{:request-type :profile
                                              :request      profile-request})
      (effects/http-effect ?command-ch profile-request))]
+
+  [::profile-articles
+   [?page <- ::specs/ActivePage
+    (= :profile (specs/page-name page))
+    (= ?username (::specs/username page))
+    (= ?filter (::specs/profile-filter page))]
+   [::specs/Token (= ?token token)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (let [articles-request (make-articles-request ?filter ?token)]
+     (rules/insert! ::specs/Request #::specs{:request-type :articles
+                                             :request      articles-request})
+     (effects/http-effect ?command-ch articles-request))]
 
   [::profile-response!
    [::specs/Request (= :profile request-type) (= ?request request)]
@@ -262,26 +282,83 @@
    =>
    (rules/insert! ::specs/Profile (:profile ?response))])
 
+(defn user-request
+  [req-fact token command-ch]
+  (let [req-type (rules/spec-type req-fact)
+        method (condp = req-type
+                 ::specs/NewUser :post
+                 ::specs/UpdatedUser :put
+                 ::specs/Login :post)
+        uri (condp = req-type
+              ::specs/NewUser (endpoint "user")
+              ::specs/UpdatedUser (endpoint "user")
+              ::specs/Login (endpoint "users" "login"))
+        request {:method method
+                 :uri uri
+                 :params {:user req-fact}
+                 :headers (auth-header token)}]
+    (rules/insert! ::specs/Request #::specs{:request-type :login
+                                            :request-data req-fact
+                                            :request      request})
+    (effects/http-effect command-ch request)))
+
+(defrules user-rules
+  [::user-request!
+   [?user-req <- ::specs/UserReq]
+   [::specs/Token (= ?token token)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (user-request ?user-req ?token ?command-ch)]
+
+  [::set-token!
+   [:not [::specs/ActivePage]]
+   [::specs/Token (= ?token token)]
+   [:test (some? ?token)]
+   =>
+   (let [request {:method  :get
+                  :uri     (endpoint "user")                ;; evaluates to "api/articles/"
+                  :headers (auth-header ?token)}]
+     (rules/insert! ::specs/Request #::specs{:request-type :login
+                                             :request      request}))]
+
+  [::user-response!
+   [?token <- ::specs/Token (= ?token token)]
+   [?Request <- ::specs/Request (= :login request-type) (= ?request request) (= ?user-req request-data)]
+   [?Response <- ::specs/Response (= ?request request) (= ?response response)]
+   [?user-req  <- ::specs/UserReq]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (let [token (-> ?response :user :token)]
+     (rules/insert-unconditional! ::specs/User (:user ?response))
+     (rules/retract! (rules/spec-type ?user-req) ?user-req)
+     (rules/retract! ::specs/Request ?Request)
+     (rules/retract! ::specs/Response ?Response)
+     (async/put! ?command-ch [:set-token token]))])
+
 (defrules view-update-rules
   [::render-active-page!
    [?active-page <- ::specs/ActivePage (= ?page page)]
    =>
-   (view/render :page ?page)]
+   (view/render :page (specs/page-name ?page))]
 
   [::render-loading!
    [?loading <- (acc/all) :from [::specs/Loading]]
    =>
-   (view/render :loading (mapv ::specs/section ?loading))]
+   (view/render :loading (mapv ::specs/request-type ?loading))]
 
   [::render-articles!
    [::specs/ActivePage (= :home (specs/page-name page))]
    [?articles <- (acc/all) :from [::specs/Article]]
-   [?tags <- (acc/all) :from [::specs/Tag]]
    [::specs/ArticleCount (= ?count count)]
    =>
    (view/render :articles ?articles)
-   (view/render :tags (mapv ::specs/tag ?tags))
    (view/render :article-count ?count)]
+
+  [::render-tags!
+   [::specs/ActivePage (= :home (specs/page-name page))]
+   [?tags <- (acc/all) :from [::specs/Tag]]
+   =>
+   (view/render :tags (mapv ::specs/tag ?tags))]
 
   [::render-article!
    [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
@@ -303,4 +380,5 @@
 #_(cljs.pprint/pprint rules)
 
 (defqueries queries
-  [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]])
+  [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]]
+  [::token [] [?token <- ::specs/Token]])
