@@ -46,6 +46,7 @@
 (s/def ::NewArticle (s/keys :req-un [::new ::body ::description ::tagList ::title]))
 (s/def ::UpdatedArticle ::Article)
 (s/def ::DeletedArticle (s/keys :req-un [::slug]))
+;;; TODO - fix rules to validate s/or of s/keys
 (s/def ::ArticleEdit (s/or ::NewArticle ::NewArticle
                            ::UpdatedArticle ::UpdatedArticle
                            ::DeletedArticle ::DeletedArticle))
@@ -56,7 +57,14 @@
 (s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id] :opt [::can-edit]))
 (s/def ::NewComment (s/keys :req-un [::body]))
 (s/def ::DeletedComment (s/keys :req-un [::id]))
-(s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
+#_(s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
+(s/def ::CommentEdit (s/keys))                              ;;;HACK - make rules check s/or forms
+(derive ::NewComment ::CommentEdit)
+(derive ::DeletedComment ::CommentEdit)
+
+(s/def ::FavoritedArticle (s/keys :req [::slug ::favorited]))
+(s/def ::FollowingUser (s/keys :req [::username ::following]))
+
 (s/def ::ArticleCount (s/keys :req [::count]))
 
 (s/def ::error (s/tuple keyword? string?))

@@ -189,19 +189,19 @@
    =>
    (lambdaisland.uniontypes/case-of ::specs/ArticleEdit ?article-edit
                                     ::specs/NewArticle _
-                                    (do
-                                      (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
-                                      (rules/retract! ::specs/NewArticle ?article-edit))
+                                    (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
 
                                     ::specs/UpdatedArticle _
-                                    (do
-                                      (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
-                                      (rules/retract! ::specs/UpdatedArticle ?article-edit))
+                                    (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
 
                                     ::specs/DeletedArticle _
-                                    (do
-                                      (async/put! ?command-ch [:page :home])
-                                      (rules/retract! ::specs/DeletedArticle ?article-edit)))])
+                                    (async/put! ?command-ch [:page :home]))]
+
+  [::remove-article-edits
+   [:not [::specs/ActivePage (= :article (specs/page-name page))]]
+   [?article-edit <- ::specs/ArticleEdit]
+   =>
+   (rules/retract! (rules/spec-type ?article-edit) ?article-edit)])
 
 (defrules comment-edit-rules
   [::new-comment!
@@ -239,6 +239,7 @@
    [?new-comment <- ::specs/NewComment]
    =>
    (rules/insert! ::specs/Comment (:comment ?response))
+   ;;; TODO - this will not work, forces retraction of the above
    (rules/retract! ::specs/NewComment ?new-comment)]
 
   [::delete-comment-response!
@@ -248,7 +249,44 @@
    [?comment <- ::specs/Comment (= ?id id)]
    =>
    (rules/retract! ::specs/Comment ?comment)
-   (rules/retract! ::specs/DeletedComment ?deleted-comment)])
+   (rules/retract! ::specs/DeletedComment ?deleted-comment)]
+
+  [::remove-comment-edits
+   [:not [::specs/ActivePage (= :article (specs/page-name page))]]
+   [?comment-edit <- ::specs/CommentsEdit]
+   =>
+   (rules/retract! (rules/spec-type ?comment-edit) ?comment-edit)])
+
+(defrules favorite-rules
+  [::favorited-article!
+   [::specs/ActivePage (= ?section (specs/page-name page))]
+   [:test (s/or (= :home ?section) (= :article ?section))]
+   [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug) (= ?favorited favorited)]
+   [::specs/Token (= ?token token)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (let [favorite-request {:method  (if ?favorited :post :delete)
+                           :uri     (endpoint "articles" ?slug "favorite")
+                           :headers (auth-header ?token)}]
+     (rules/insert! ::specs/Request #::specs{:request-type ?section
+                                             :request-data ?favorited-article
+                                             :request      favorite-request})
+     (effects/http-effect ?command-ch favorite-request))]
+
+  [::favorited-article-response
+   [::specs/Request (= ?toggle-favorite request-data) (= ?request request)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug)]
+   [?article <- ::specs/Article (= ?slug slug)]
+   =>
+   (rules/upsert! ::specs/Article ?article (:article ?response))]
+
+  [::remove-favorite-edits!
+   [::specs/ActivePage (= ?section (specs/page-name page))]
+   [:test (not (s/or (= :home ?section) (= :article ?section)))]
+   [?favorited-article <- ::specs/FavoritedArticle]
+   =>
+   (rules/retract! ::specs/FavoritedArticle ?favorited-article)])
 
 (defrules profile-page-rules
   [::profile!
@@ -381,4 +419,5 @@
 
 (defqueries queries
   [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]]
-  [::token [] [?token <- ::specs/Token]])
+  [::token [] [?token <- ::specs/Token]]
+  [::favorited-article [?slug] [?favorited-article <- ::specs/FavoritesArticle (= ?slug slug)]])

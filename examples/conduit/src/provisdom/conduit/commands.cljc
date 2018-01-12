@@ -17,6 +17,8 @@
 (s/def ::new-article (s/cat :command #{:new-article} :article ::specs/NewArticle))
 (s/def ::update-article (s/cat :command #{:update-article} :article ::specs/UpdatedArticle))
 (s/def ::delete-article (s/cat :command #{:delete-article} :article ::specs/DeletedArticle))
+(s/def ::toggle-favorite (s/cat :command #{:toggle-favorite} :article ::specs/Article))
+(s/def ::toggle-follow (s/cat :command #{:toggle-follow} :username ::specs/User))
 (s/def ::login (s/cat :command #{:login} :credentials ::specs/Login))
 (s/def ::logout (s/cat :command #{:logout}))
 (s/def ::register (s/cat :command #{:register} :credentials ::specs/NewUser))
@@ -31,6 +33,7 @@
                        ::new-article ::new-article
                        ::update-article ::update-article
                        ::delete-article ::delete-article
+                       ::toggle-favorite ::toggle-favorite
                        ::register ::register
                        ::update-user ::update-user
                        ::login ::login
@@ -48,13 +51,24 @@
            ::new-article {:keys [article]} (rules/insert session ::specs/NewArticle article)
            ::update-article {:keys [article]} (rules/insert session ::specs/UpdatedArticle article)
            ::delete-article {:keys [article]} (rules/insert session ::specs/DeletedArticle article)
+
+           ::toggle-favorite {:keys [article]}
+           (rules/upsert-q session ::specs/ToggleFavorite
+                           (rules/query-fn :?favorited-article ::conduit/favorited-article :?slug (:slug article))
+                           update ::specs/favorited not)
+
+           ::toggle-following {:keys [user]}
+           (rules/upsert-q session ::specs/ToggleFollowing
+                           (rules/query-fn :?following-user ::conduit/following-user :?username (:username user))
+                           update ::specs/following not)
+
            ::register {:keys [credentials]} (rules/insert session ::specs/NewUser credentials)
            ::update-user {:keys [user]} (rules/insert session ::specs/UpdatedUser user)
            ::login {:keys [credentials]} (rules/insert session ::specs/Login credentials)
            ::logout _ (handle-state-command session [:set-token nil])
            ::hash {:keys [hash]} (set! (.-hash js/location) hash)
            ::page {:keys [page]} (rules/upsert-q session ::specs/ActivePage
-                                                 (rules/query-fn ::conduit/active-page :?active-page)
+                                                 (rules/query-fn :?active-page ::conduit/active-page)
                                                  assoc ::specs/page (s/unform ::specs/page page))
            ::set-token {:keys [token]}
            (do
