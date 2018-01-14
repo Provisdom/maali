@@ -53,18 +53,18 @@
     (async/go
       (async/>! command-ch [:init session])
       (async/>! command-ch [:set-token token])
-      (async/<! (async/timeout 2000))
-      (async/>! command-ch [:page :login])
-      (async/>! command-ch [:login {::specs/email "dave.d.dixon@gmail.com" ::specs/password "lovepump"}])
-      (async/<! (async/timeout 2000))
-      (async/>! command-ch [:update-user {::specs/email "dave.d.dixon@gmail.com"
+      #_(async/<! (async/timeout 2000))
+      #_(async/>! command-ch [:page :login])
+      #_(async/>! command-ch [:login {::specs/email "dave.d.dixon@gmail.com" ::specs/password "lovepump"}])
+      #_(async/<! (async/timeout 2000))
+      #_(async/>! command-ch [:update-user {::specs/email "dave.d.dixon@gmail.com"
                                           ::specs/bio "Fnorb"
                                           ::specs/username "sparkofreason"
                                           ::specs/image nil}])
 
-      (async/<! (async/timeout 2000))
+      #_(async/<! (async/timeout 2000))
       #_(async/>! command-ch [:logout])
-      #_(async/>! command-ch [:page :home])
+      #_(async/>! command-ch [:page #::specs{:feed true :offset 0 :limit 10}])
       #_(async/<! (async/timeout 1000))
       #_(async/>! command-ch [:page {::specs/slug "asdf"}])
       #_(async/<! (async/timeout 1000))

@@ -28,6 +28,11 @@
 
 (s/def ::tag string?)
 (s/def ::Tag (s/keys :req [::tag]))
+(s/def ::atom #(satisfies? #?(:clj clojure.lang.IDeref :cljs cljs.core/IDeref) %))
+(s/def ::tags ::atom)
+(s/def ::Tags (s/keys :req [::tags]))
+(s/def ::time int?)
+(s/def ::Time (s/keys :req [::time ::atom]))
 
 (s/def ::author ::Profile)
 (s/def ::body string?)
@@ -57,8 +62,7 @@
 (s/def ::Comment (s/keys :req-un [::author ::body ::createdAt ::updatedAt ::id] :opt [::can-edit]))
 (s/def ::NewComment (s/keys :req-un [::body]))
 (s/def ::DeletedComment (s/keys :req-un [::id]))
-#_(s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
-(s/def ::CommentEdit (s/keys))                              ;;;HACK - make rules check s/or forms
+(s/def ::CommentEdit (s/or ::NewComment ::NewComment ::DeletedComment ::DeletedComment))
 (derive ::NewComment ::CommentEdit)
 (derive ::DeletedComment ::CommentEdit)
 

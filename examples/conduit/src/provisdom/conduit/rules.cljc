@@ -253,7 +253,7 @@
 
   [::remove-comment-edits
    [:not [::specs/ActivePage (= :article (specs/page-name page))]]
-   [?comment-edit <- ::specs/CommentsEdit]
+   [?comment-edit <- ::specs/CommentEdit]
    =>
    (rules/retract! (rules/spec-type ?comment-edit) ?comment-edit)])
 
@@ -420,4 +420,4 @@
 (defqueries queries
   [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]]
   [::token [] [?token <- ::specs/Token]]
-  [::favorited-article [?slug] [?favorited-article <- ::specs/FavoritesArticle (= ?slug slug)]])
+  [::favorited-article [:?slug] [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug)]])

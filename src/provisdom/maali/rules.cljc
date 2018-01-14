@@ -1,5 +1,6 @@
 (ns provisdom.maali.rules
   (:require [clojure.spec.alpha :as s]
+            [cljs.spec.alpha]
             [clara.rules :as rules]
             [clara.rules.engine]
             [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]
@@ -15,8 +16,6 @@
 
 #?(:clj
    (defn compiling-cljs?
-     "Return true if we are currently generating cljs code.  Useful because cljx does not
-            provide a hook for conditional macro expansion."
      []
      (boolean
        (when-let [n (find-ns 'cljs.analyzer)]
@@ -74,8 +73,31 @@
    (defn resolve-spec-form
      [spec-name]
      (loop [s spec-name]
-       (let [form (@cljs.spec.alpha/registry-ref s)]
+       (let [form (if (compiling-cljs?) (@cljs.spec.alpha/registry-ref s) (s/form spec-name))]
          (if (keyword? form) (recur form) form)))))
+
+#?(:clj
+   (defn spec->keys
+     [spec-name]
+     (let [composite-forms (if (compiling-cljs?)
+                             #{'cljs.spec.alpha/or 'cljs.spec.alpha/merge}
+                             #{'clojure.spec.alpha/or 'cljs.spec.alpha/merge})
+           form (resolve-spec-form spec-name)]
+       (cond
+         (composite-forms (first form))
+         (reduce (fn [keys key] (clojure.set/union keys (spec->keys key))) #{} (rest form))
+
+         (= (first form) (if (compiling-cljs?) 'cljs.spec.alpha/keys 'clojure.spec.alpha/keys))
+         (set (mapcat (fn [[keys-type keys]]
+                        (if (#{:req-un :opt-un} keys-type)
+                          (map (comp keyword name) keys)
+                          keys))
+                      (->> form (drop 1) (partition 2))))
+
+         :else
+         (throw (ex-info
+                  (str "Fact types must be spec'ed with s/keys: (s/def " spec-name " " (pr-str form) ")")
+                  {:type spec-name :form form}))))))
 
 #?(:clj
    (defn add-args-to-constraint
@@ -83,18 +105,7 @@
      (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
        (if (or args (not (contains? c :type)))
          constraint
-         (let [form (let [f (resolve-spec-form type)]
-                      (if (and (list? f) (or (= 'cljs.spec.alpha/keys (first f))
-                                             (= 'cljs.spec.alpha/merge (first f))))
-                        f
-                        (throw (ex-info
-                                 (str "Fact types must be spec'ed with s/keys: (s/def " type " " (pr-str f) ")")
-                                 {:type type :form f}))))
-               args [{:keys (vec (mapcat (fn [[keys-type keys]]
-                                           (if (#{:req-un :opt-un} keys-type)
-                                             (map (comp keyword name) keys)
-                                             keys))
-                                         (->> form (drop 1) (partition 2))))}
+         (let [args [{:keys (vec (spec->keys type))}
                      #_(com/field-name->accessors-used (eval type) constraints)]]
            (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))
      ))
@@ -219,9 +230,9 @@
     (insert! spec new-fact)))
 
 #_(defn upsert-f!
-  [spec fact f & args]
-  (retract! spec fact)
-  (insert! spec (apply f fact args)))
+    [spec fact f & args]
+    (retract! spec fact)
+    (insert! spec (apply f fact args)))
 
 (defn upsert-unconditional!
   [spec old-fact new-fact]
