@@ -18,7 +18,7 @@
 (s/def ::new-article (s/cat :command #{:new-article} :article ::specs/NewArticle))
 (s/def ::update-article (s/cat :command #{:update-article} :article ::specs/UpdatedArticle))
 (s/def ::delete-article (s/cat :command #{:delete-article} :article ::specs/DeletedArticle))
-(s/def ::toggle-favorite (s/cat :command #{:toggle-favorite} :article ::specs/Article))
+(s/def ::toggle-favorite (s/cat :command #{:toggle-favorite} :slug ::specs/slug :favorited ::specs/favorited))
 (s/def ::toggle-following (s/cat :command #{:toggle-following} :username ::specs/User))
 (s/def ::login (s/cat :command #{:login} :credentials ::specs/Login))
 (s/def ::logout (s/cat :command #{:logout}))
@@ -56,10 +56,14 @@
            ::update-article {:keys [article]} (rules/insert session ::specs/UpdatedArticle article)
            ::delete-article {:keys [article]} (rules/insert session ::specs/DeletedArticle article)
 
-           ::toggle-favorite {:keys [article]}
-           (rules/upsert-q session ::specs/ToggleFavorite
-                           (rules/query-fn ::conduit/favorited-article :?favorited-article :?slug (:slug article))
-                           update ::specs/favorited not)
+           ::toggle-favorite {:keys [slug favorited]}
+           (let [request (-> (rules/query session ::conduit/request :?request-data slug :?type :favorite :?target :user)
+                             first
+                             :?request)]
+             (println "********" request)
+             (rules/insert session ::specs/Response #::specs{:request  request
+                                                             :response favorited
+                                                             :time     (specs/now)}))
 
            ::toggle-following {:keys [user]}
            (rules/upsert-q session ::specs/ToggleFollowing
@@ -89,9 +93,12 @@
         :ret rules/session?)
 
 (def update-state (fn [session command]
-                    (-> session
-                        (handle-state-command command)
-                        (rules/fire-rules))))
+                    (let [session
+                          (-> session
+                              (handle-state-command command)
+                              (rules/fire-rules))]
+                      #_(println (rules/query session ::conduit/current-article))
+                      session)))
 
 (def debug-update-state (fn [session command]
                           (if session

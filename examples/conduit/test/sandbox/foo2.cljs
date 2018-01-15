@@ -15,11 +15,12 @@
             [provisdom.maali.pprint :refer-macros [pprint]]
             [clara.tools.inspect :as inspect]))
 
-(defsession session [provisdom.conduit.rules/http-handling-rules
+(defsession session [provisdom.conduit.rules/request-response-rules
                      provisdom.conduit.rules/home-page-rules
                      provisdom.conduit.rules/article-page-rules
                      provisdom.conduit.rules/article-edit-rules
                      provisdom.conduit.rules/comment-edit-rules
+                     provisdom.conduit.rules/favorite-rules
                      provisdom.conduit.rules/profile-page-rules
                      provisdom.conduit.rules/user-rules
                      provisdom.conduit.rules/view-update-rules
@@ -39,7 +40,7 @@
 (defn start
   [session]
   (let [token (.getItem js/localStorage conduit/token-key)
-        command-ch (async/chan 100)
+        command-ch (async/chan 1)
         session (-> session
                     (rules/insert ::specs/AppData {::specs/command-ch command-ch})
                     (rules/fire-rules))]
@@ -53,7 +54,11 @@
     (async/go
       (async/>! command-ch [:init session])
       (async/>! command-ch [:set-token token])
-      #_(async/<! (async/timeout 2000))
+      (async/<! (async/timeout 2000))
+      (async/>! command-ch [:toggle-favorite "bro-tpuq1n" false])
+      (async/<! (async/timeout 1000))
+      #_(async/>! command-ch [:toggle-favorite "bro-tpuq1n" true])
+      #_(async/>! command-ch [:toggle-favorite "bro-tpuq1n" false])
       #_(async/>! command-ch [:page :login])
       #_(async/>! command-ch [:login {::specs/email "dave.d.dixon@gmail.com" ::specs/password "lovepump"}])
       #_(async/<! (async/timeout 2000))

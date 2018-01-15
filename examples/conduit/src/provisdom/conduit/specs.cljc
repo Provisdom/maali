@@ -1,8 +1,12 @@
 (ns provisdom.conduit.specs
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s])
+  #?(:clj (:import (java.util Formatter$DateTime Date))))
 
-(s/def ::command-ch any?)                                   ;;
+(s/def ::command-ch any?)                                   ;;; TODO Spec channel?
 (s/def ::AppData (s/keys :req [::command-ch]))
+
+(s/def ::time int?)
+(defn now [] #?(:clj (Date/now) :cljs (.getTime (js/Date.))))
 
 (s/def ::count nat-int?)
 
@@ -28,11 +32,7 @@
 
 (s/def ::tag string?)
 (s/def ::Tag (s/keys :req [::tag]))
-(s/def ::atom #(satisfies? #?(:clj clojure.lang.IDeref :cljs cljs.core/IDeref) %))
-(s/def ::tags ::atom)
-(s/def ::Tags (s/keys :req [::tags]))
 (s/def ::time int?)
-(s/def ::Time (s/keys :req [::time ::atom]))
 
 (s/def ::author ::Profile)
 (s/def ::body string?)
@@ -45,8 +45,10 @@
 (s/def ::title string?)
 (s/def ::updatedAt string?)
 (s/def ::Article (s/keys :req-un [::author ::body ::createdAt ::description ::favorited ::favoritesCount
-                               ::slug ::tagList ::title ::updatedAt]
+                                  ::slug ::tagList ::title ::updatedAt]
                          :opt [::can-edit]))
+(s/def ::CurrentArticle ::Article)
+
 (s/def ::new boolean?)
 (s/def ::NewArticle (s/keys :req-un [::new ::body ::description ::tagList ::title]))
 (s/def ::UpdatedArticle ::Article)
@@ -100,13 +102,15 @@
 (s/def ::ActivePage (s/keys :req [::page]))
 
 ;;; Requests to server
-(s/def ::request map?)
-(s/def ::request-type #{:login :articles :article :editor :comments :profile
-                        :tags :toggle-follow-user :toggle-favorite-article})
+(def section #{:login :articles :article :editor :comments :profile :tags})
+(s/def ::section section)
+(s/def ::type keyword?)
+(s/def ::target #{:server :user})
+(s/def ::request-type (s/keys :req [::target (or ::section ::type)]))
 (s/def ::request-data any?)
-(s/def ::Request (s/keys :req [::request ::request-type] :opt [::request-data]))
-(s/def ::Loading (s/keys :req [::request-type]))
+(s/def ::Request (s/keys :req [::type ::target ::time] :opt [::request-data]))
+(s/def ::Loading (s/keys :req [::section]))
 
 ;;; Responses from server
-(s/def ::response map?)
-(s/def ::Response (s/keys :req [::response ::request]))
+(s/def ::response any?)
+(s/def ::Response (s/keys :req [::response ::request] :opt [::time]))

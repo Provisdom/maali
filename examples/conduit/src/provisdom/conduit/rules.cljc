@@ -23,30 +23,44 @@
   (when token
     [:Authorization (str "Token " token)]))
 
-(defrules http-handling-rules
+(defrules request-response-rules
   [::request!
-   [::specs/Request (= ?section request-type) (= ?request request)]
+   [?request <- ::specs/Request (= ?type type) (= :server target)]
+   [:test (specs/section ?type)]
    [:not [::specs/Response (= ?request request)]]
    =>
-   (rules/insert! ::specs/Loading #::specs{:request-type ?section})]
+   (rules/insert! ::specs/Loading #::specs{:section ?type})]
 
   ;;; Clean up responses so they don't leak memory.
   [::retracted-request!
    [?response <- ::specs/Response (= ?request request)]
-   [:not [::specs/Request (= ?request request)]]
+   [:not [?request <- ::specs/Request]]
    =>
-   (rules/retract! ::specs/Response ?response)])
+   (println ::retracted-request!)
+   (rules/retract! ::specs/Response ?response)]
+
+  ;;; If we get multiple responses to the same request, only keep the newest
+  [::retract-older-response!
+   [?old <- ::specs/Response (= ?request request) (= ?old-time time)]
+   [?new <- ::specs/Response (= ?request request) (= ?new-time time)]
+   [:test (and (> ?new-time ?old-time))]
+   =>
+   (println ::retract-older-response!)
+   (rules/retract! ::specs/Response ?old)])
 
 (defn make-articles-request
   [filter token]
-  {:method  :get
-   :uri     (if (::specs/feed filter) (endpoint "articles" "feed") (endpoint "articles"))
-   :params  (cond-> filter
-                    (::specs/username filter) (assoc :author (::specs/username filter))
-                    true (dissoc ::specs/username)
-                    (::specs/favorited-user filter) (assoc :favorited (::specs/favorited-user filter))
-                    true (dissoc ::specs/favorited-user))
-   :headers (auth-header token)})
+  {:method              :get
+   :uri                 (if (::specs/feed filter) (endpoint "articles" "feed") (endpoint "articles"))
+   :params              (cond-> filter
+                                (::specs/username filter) (assoc :author (::specs/username filter))
+                                true (dissoc ::specs/username)
+                                (::specs/favorited-user filter) (assoc :favorited (::specs/favorited-user filter))
+                                true (dissoc ::specs/favorited-user))
+   :headers             (auth-header token)
+   ::specs/type :articles
+   ::specs/target :server
+   ::specs/time         (specs/now)})
 
 (defrules home-page-rules
   [::articles-request!
@@ -54,28 +68,63 @@
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [tags-request {:method :get
-                       :uri    (endpoint "tags")}
+   (let [tags-request {:method              :get
+                       :uri                 (endpoint "tags")
+                       ::specs/type :tags
+                       ::specs/target :server
+                       ::specs/time         (specs/now)}
          articles-request (make-articles-request ?filter ?token)]
-     (rules/insert! ::specs/Request #::specs{:request-type :tags
-                                             :request      tags-request})
+     (rules/insert! ::specs/Request tags-request)
      (effects/http-effect ?command-ch tags-request)
-     (rules/insert! ::specs/Request #::specs{:request-type :articles
-                                             :request      articles-request})
+     (rules/insert! ::specs/Request articles-request)
      (effects/http-effect ?command-ch articles-request))]
 
   [::articles-response!
-   [::specs/Request (= :articles request-type) (= ?request request)]
+   [?request <- ::specs/Request (= :articles type) (= :server target)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
    (rules/insert! ::specs/ArticleCount {::specs/count (:articlesCount ?response)})
-   (apply rules/insert! ::specs/Article (:articles ?response))]
+   (apply rules/insert! ::specs/Article (map #(assoc % ::specs/time (specs/now)) (:articles ?response)))]
 
   [::tags-response!
-   [::specs/Request (= :tags request-type) (= ?request request)]
+   [?request <- ::specs/Request (= :tags type) (= :server target)]
    [::specs/Response (= ?request request) (= ?response response)]
    =>
    (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))])
+
+(defrules favorite-rules
+  [::favorited-user-request!
+   [::specs/Article (= ?slug slug)]
+   =>
+   (println "ONE")
+   (rules/insert! ::specs/Request #::specs{:request-data ?slug
+                                           ::specs/type :favorite
+                                           ::specs/target :user
+                                           :time (specs/now)})]
+
+  [::favorited-user-response!
+   [?request <- ::specs/Request (= :favorite type) (= :user target) (= ?slug request-data) (= ?time time)]
+   [::specs/Response (= ?request request) (= ?favorited response)]
+   [::specs/Token (= ?token token)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (println "TWO" ?request)
+   (let [request {:method              (if ?favorited :post :delete)
+                  :uri                 (endpoint "articles" ?slug "favorite")
+                  :headers             (auth-header ?token)
+                  ::specs/type :favorite
+                  ::specs/target :server
+                  ::specs/request-data ?slug
+                  ::specs/time (specs/now)}]
+     (rules/insert! ::specs/Request request)
+     (effects/http-effect ?command-ch request))]
+
+  [::favorited-http-response!
+   [?request <- ::specs/Request (= ?slug request-data) (= :favorite type) (= :server target)]
+   [::specs/Response (= ?request request) (= ?response response)]
+   =>
+   (println "THREE")
+   (rules/insert! ::specs/Article (assoc (:article ?response) ::specs/time (specs/now)))])
 
 (defrules article-page-rules
   [::article-request!
@@ -257,37 +306,6 @@
    =>
    (rules/retract! (rules/spec-type ?comment-edit) ?comment-edit)])
 
-(defrules favorite-rules
-  [::favorited-article!
-   [::specs/ActivePage (= ?section (specs/page-name page))]
-   [:test (s/or (= :home ?section) (= :article ?section))]
-   [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug) (= ?favorited favorited)]
-   [::specs/Token (= ?token token)]
-   [::specs/AppData (= ?command-ch command-ch)]
-   =>
-   (let [favorite-request {:method  (if ?favorited :post :delete)
-                           :uri     (endpoint "articles" ?slug "favorite")
-                           :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type ?section
-                                             :request-data ?favorited-article
-                                             :request      favorite-request})
-     (effects/http-effect ?command-ch favorite-request))]
-
-  [::favorited-article-response
-   [::specs/Request (= ?toggle-favorite request-data) (= ?request request)]
-   [::specs/Response (= ?request request) (= ?response response)]
-   [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug)]
-   [?article <- ::specs/Article (= ?slug slug)]
-   =>
-   (rules/upsert! ::specs/Article ?article (:article ?response))]
-
-  [::remove-favorite-edits!
-   [::specs/ActivePage (= ?section (specs/page-name page))]
-   [:test (not (s/or (= :home ?section) (= :article ?section)))]
-   [?favorited-article <- ::specs/FavoritedArticle]
-   =>
-   (rules/retract! ::specs/FavoritedArticle ?favorited-article)])
-
 (defrules profile-page-rules
   [::profile!
    [::specs/ActivePage (= :profile (specs/page-name page)) (= ?username (::specs/username page))]
@@ -331,9 +349,9 @@
               ::specs/NewUser (endpoint "user")
               ::specs/UpdatedUser (endpoint "user")
               ::specs/Login (endpoint "users" "login"))
-        request {:method method
-                 :uri uri
-                 :params {:user req-fact}
+        request {:method  method
+                 :uri     uri
+                 :params  {:user req-fact}
                  :headers (auth-header token)}]
     (rules/insert! ::specs/Request #::specs{:request-type :login
                                             :request-data req-fact
@@ -363,7 +381,7 @@
    [?token <- ::specs/Token (= ?token token)]
    [?Request <- ::specs/Request (= :login request-type) (= ?request request) (= ?user-req request-data)]
    [?Response <- ::specs/Response (= ?request request) (= ?response response)]
-   [?user-req  <- ::specs/UserReq]
+   [?user-req <- ::specs/UserReq]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
    (let [token (-> ?response :user :token)]
@@ -373,6 +391,7 @@
      (rules/retract! ::specs/Response ?Response)
      (async/put! ?command-ch [:set-token token]))])
 
+;;; TODO - put this back as queries or use salience to avoid thrashing the view with intermediate states
 (defrules view-update-rules
   [::render-active-page!
    [?active-page <- ::specs/ActivePage (= ?page page)]
@@ -382,11 +401,16 @@
   [::render-loading!
    [?loading <- (acc/all) :from [::specs/Loading]]
    =>
-   (view/render :loading (mapv ::specs/request-type ?loading))]
+   (view/render :loading (mapv ::specs/section ?loading))]
+
+  [::current-article!
+   [?article <- (acc/max ::specs/time :returns-fact true) :from [::specs/Article (= ?slug slug)]]
+   =>
+   (rules/insert! ::specs/CurrentArticle ?article)]
 
   [::render-articles!
    [::specs/ActivePage (= :home (specs/page-name page))]
-   [?articles <- (acc/all) :from [::specs/Article]]
+   [?articles <- (acc/all) :from [::specs/CurrentArticle]]
    [::specs/ArticleCount (= ?count count)]
    =>
    (view/render :articles ?articles)
@@ -420,4 +444,6 @@
 (defqueries queries
   [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]]
   [::token [] [?token <- ::specs/Token]]
-  [::favorited-article [:?slug] [?favorited-article <- ::specs/FavoritedArticle (= ?slug slug)]])
+  #_[::current-article [] [?article <- (acc/max ::specs/time :returns-fact true) :from [::specs/Article (= ?slug slug)]]]
+  [::request [:?request-data :?type :?target] [?request <- (acc/max ::specs/time :returns-fact true)
+                                              :from [::specs/Request (= ?request-data request-data) (= ?type type) (= ?target target)]]])

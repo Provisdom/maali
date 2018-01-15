@@ -76,6 +76,12 @@
        (let [form (if (compiling-cljs?) (@cljs.spec.alpha/registry-ref s) (s/form spec-name))]
          (if (keyword? form) (recur form) form)))))
 
+(defn flatten-keys
+  [keys]
+  (mapcat #(cond
+             (keyword? %) [%]
+             (list? %) (flatten-keys (rest %)))
+          keys))
 #?(:clj
    (defn spec->keys
      [spec-name]
@@ -90,8 +96,9 @@
          (= (first form) (if (compiling-cljs?) 'cljs.spec.alpha/keys 'clojure.spec.alpha/keys))
          (set (mapcat (fn [[keys-type keys]]
                         (if (#{:req-un :opt-un} keys-type)
-                          (map (comp keyword name) keys)
-                          keys))
+                          (map (comp keyword name)
+                               (flatten-keys keys))
+                          (flatten-keys keys)))
                       (->> form (drop 1) (partition 2))))
 
          :else
