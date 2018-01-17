@@ -55,7 +55,7 @@
 (s/def ::rhs (s/+ list?))
 (s/def ::params (s/coll-of keyword? :type vector?))
 (s/def ::query (s/cat :name keyword? :params ::params :lhs ::lhs))
-(s/def ::rule (s/cat :name keyword? :lhs ::lhs :sep #{'=>} :rhs ::rhs))
+(s/def ::rule (s/cat :name keyword? :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
 
 #?(:clj
    (defmacro deffacttype
@@ -88,7 +88,7 @@
      (let [composite-forms (if (compiling-cljs?)
                              #{'cljs.spec.alpha/or 'cljs.spec.alpha/merge}
                              #{'clojure.spec.alpha/or 'cljs.spec.alpha/merge})
-           form (resolve-spec-form spec-name)]
+           form (if (keyword? spec-name) (resolve-spec-form spec-name) spec-name)]
        (cond
          (composite-forms (first form))
          (reduce (fn [keys key] (clojure.set/union keys (spec->keys key))) #{} (rest form))
@@ -104,7 +104,7 @@
          :else
          (throw (ex-info
                   (str "Fact types must be spec'ed with s/keys: (s/def " spec-name " " (pr-str form) ")")
-                  {:type spec-name :form form}))))))
+                  {:type (pr-str spec-name) :form (pr-str form)}))))))
 
 #?(:clj
    (defn add-args-to-constraint
@@ -148,7 +148,7 @@
          (binding [*out* *err*]
            (println (str "Rule in " rules-name " failed spec"))
            (pprint e)
-           (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation e})))))
+           (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation (s/explain-str ::rule rule)})))))
      (let [prods (build-prods rules-name rules macros/build-rule)]
        `(def ~rules-name ~prods))))
 
@@ -160,7 +160,7 @@
          (binding [*out* *err*]
            (println (str "Query in " queries-name " failed spec"))
            (pprint e)
-           (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation e})))))
+           (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation (s/explain-str ::query query)})))))
      (let [prods (build-prods queries-name queries macros/build-query)]
        `(def ~queries-name ~prods))))
 
@@ -185,11 +185,11 @@
 (defn check-and-spec
   [spec facts]
   (let [form (@cljs.spec.alpha/registry-ref spec)]
-    (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " spec) {:spec spec}))))
+    (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " (pr-str spec)) {:spec spec}))))
   (mapv #(if-let [e (s/explain-data spec %)]
            (do
              (pprint e)
-             (throw (ex-info (str "Fact failed spec " spec) {:fact % :explanation e})))
+             (throw (ex-info (str "Fact failed spec " (pr-str spec)) {:fact % :explanation (s/explain-str spec %)})))
            (spec-type % spec))
         facts))
 

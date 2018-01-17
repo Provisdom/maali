@@ -51,7 +51,7 @@
                          true (assoc :response-format (ajax/json-response-format {:keywords? true})
                                      :on-success (or
                                                    on-success
-                                                   (fn [%] (async/put! command-ch [:response #::specs{:response % :request request}])))
+                                                   (fn [%] (async/put! command-ch [:response #::specs{:response % :request request :time (specs/now)}])))
                                      :on-failure (or on-failure #(println %))))]
     (-> request'
         (merge {})

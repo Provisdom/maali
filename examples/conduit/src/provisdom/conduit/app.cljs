@@ -14,10 +14,11 @@
 
 #_(enable-console-print!)
 
-#_(set! (.-onerror js/window) #(do
-                               (println "FAARK!!!!!!!!!!!!!!!!!")
-                               (when-let [explanation (-> % ex-data :explanation)] (pprint explanation))
-                               (pprint %)))
+(set! (.-onerror js/window) (fn [errorMsg, url, lineNumber, column, errorObj]
+                              (println "FAARK!!!!!!!!!!!!!!!!!")
+                              #_(when-let [explanation (-> % ex-data :explanation)] (pprint explanation))
+                              (.log js/console errorMsg)
+                              (.log js/console errorObj)))
 
 (defn init
   [])

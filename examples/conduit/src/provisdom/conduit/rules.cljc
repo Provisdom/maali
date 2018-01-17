@@ -24,8 +24,8 @@
     [:Authorization (str "Token " token)]))
 
 (defrules request-response-rules
-  [::request!
-   [?request <- ::specs/Request (= ?type type) (= :server target)]
+  #_[::request!
+   [?request <- ::specs/Request]
    [:test (specs/section ?type)]
    [:not [::specs/Response (= ?request request)]]
    =>
@@ -50,265 +50,257 @@
 
 (defn make-articles-request
   [filter token]
-  {:method              :get
-   :uri                 (if (::specs/feed filter) (endpoint "articles" "feed") (endpoint "articles"))
-   :params              (cond-> filter
-                                (::specs/username filter) (assoc :author (::specs/username filter))
-                                true (dissoc ::specs/username)
-                                (::specs/favorited-user filter) (assoc :favorited (::specs/favorited-user filter))
-                                true (dissoc ::specs/favorited-user))
-   :headers             (auth-header token)
-   ::specs/type :articles
-   ::specs/target :server
-   ::specs/time         (specs/now)})
+  {:method                :get
+   :uri                   (if (::specs/feed filter) (endpoint "articles" "feed") (endpoint "articles"))
+   :params                (cond-> filter
+                                  (::specs/username filter) (assoc :author (::specs/username filter))
+                                  true (dissoc ::specs/username)
+                                  (::specs/favorited-user filter) (assoc :favorited (::specs/favorited-user filter))
+                                  true (dissoc ::specs/favorited-user))
+   :headers               (auth-header token)
+   ::specs/ArticlesFilter filter
+   ::specs/time           (specs/now)})
 
-(defrules home-page-rules
+(def current (acc/max ::specs/time :returns-fact true))
+
+;;; TODO - get rid of biz logic dependence on pages, make everything centered around article list fetched from server
+(defrules articles-list-rules
   [::articles-request!
-   [::specs/ActivePage (= :home (specs/page-name page)) (= ?filter page)]
+   [?filter <- ::specs/ArticlesFilter]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [tags-request {:method              :get
-                       :uri                 (endpoint "tags")
-                       ::specs/type :tags
-                       ::specs/target :server
-                       ::specs/time         (specs/now)}
+   (let [tags-request {:method      :get
+                       :uri         (endpoint "tags")
+                       ::specs/time (specs/now)}
          articles-request (make-articles-request ?filter ?token)]
-     (rules/insert! ::specs/Request tags-request)
+     (rules/insert! ::specs/TagsHttpRequest tags-request)
      (effects/http-effect ?command-ch tags-request)
-     (rules/insert! ::specs/Request articles-request)
+     (rules/insert! ::specs/ArticlesHttpRequest articles-request)
      (effects/http-effect ?command-ch articles-request))]
 
   [::articles-response!
-   [?request <- ::specs/Request (= :articles type) (= :server target)]
-   [::specs/Response (= ?request request) (= ?response response)]
+   [?request <- ::specs/ArticlesHttpRequest]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
    =>
    (rules/insert! ::specs/ArticleCount {::specs/count (:articlesCount ?response)})
-   (apply rules/insert! ::specs/Article (map #(assoc % ::specs/time (specs/now)) (:articles ?response)))]
+   (apply rules/insert! ::specs/Article (map #(assoc (specs/ns-keys %) ::specs/time (specs/now)) (:articles ?response)))]
 
   [::tags-response!
-   [?request <- ::specs/Request (= :tags type) (= :server target)]
-   [::specs/Response (= ?request request) (= ?response response)]
+   [?request <- ::specs/TagsHttpRequest]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
    =>
    (apply rules/insert! ::specs/Tag (map (fn [tag] {::specs/tag tag}) (:tags ?response)))])
 
 (defrules favorite-rules
   [::favorited-user-request!
-   [::specs/Article (= ?slug slug)]
+   [?article <- current :from [::specs/Article (= ?slug slug)]]
+   [::specs/LoggedIn (some? logged-in-user)]
    =>
-   (println "ONE")
-   (rules/insert! ::specs/Request #::specs{:request-data ?slug
-                                           ::specs/type :favorite
-                                           ::specs/target :user
-                                           :time (specs/now)})]
+   (rules/insert! ::specs/ToggleFavoriteUserRequest #::specs{:slug ?slug :time (specs/now)})]
 
   [::favorited-user-response!
-   [?request <- ::specs/Request (= :favorite type) (= :user target) (= ?slug request-data) (= ?time time)]
-   [::specs/Response (= ?request request) (= ?favorited response)]
+   [?request <- ::specs/ToggleFavoriteUserRequest (= ?slug slug) ]
+   [?article <- current :from [::specs/Article (= ?slug slug) (= ?favorited favorited)]]
+   [::specs/Response (= ?request request)]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (println "TWO" ?request)
-   (let [request {:method              (if ?favorited :post :delete)
-                  :uri                 (endpoint "articles" ?slug "favorite")
-                  :headers             (auth-header ?token)
-                  ::specs/type :favorite
-                  ::specs/target :server
-                  ::specs/request-data ?slug
+   (let [request {:method      (if ?favorited :post :delete)
+                  :uri         (endpoint "articles" ?slug "favorite")
+                  :headers     (auth-header ?token)
                   ::specs/time (specs/now)}]
-     (rules/insert! ::specs/Request request)
+     (rules/insert! ::specs/ToggleFavoriteHttpRequest request)
      (effects/http-effect ?command-ch request))]
 
   [::favorited-http-response!
-   [?request <- ::specs/Request (= ?slug request-data) (= :favorite type) (= :server target)]
-   [::specs/Response (= ?request request) (= ?response response)]
+   [?request <- ::specs/ToggleFavoriteHttpRequest]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
    =>
-   (println "THREE")
-   (rules/insert! ::specs/Article (assoc (:article ?response) ::specs/time (specs/now)))])
+   (rules/insert! ::specs/Article (assoc (specs/ns-keys (:article ?response)) ::specs/time (specs/now)))])
 
-(defrules article-page-rules
-  [::article-request!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
+(defn make-comments-request
+  [slug token]
+  {:method      :get
+   :uri         (endpoint "articles" slug "comments")
+   :headers     (auth-header token)
+   ::specs/slug slug
+   ::specs/time (specs/now)})
+
+(defrules article-rules
+  [::article-user-request!
+   [?article <- current :from [::specs/Article (= ?slug slug)]]
+   =>
+   (rules/insert! ::specs/ViewArticleUserRequest #::specs{:slug ?slug :time (specs/now)})]
+
+  [::article-user-response!
+   [?request <- ::specs/ViewArticleUserRequest (= ?slug slug)]
+   [::specs/Response (= ?request request)]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [article-request {:method  :get
-                          :uri     (endpoint "articles" ?slug) ;; evaluates to "api/articles/:slug"
-                          :headers (auth-header ?token)}
-         comments-request {:method  :get
-                           :uri     (endpoint "articles" ?slug "comments")
-                           :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :article
-                                             :request      article-request})
+   (let [article-request {:method              :get
+                          :uri                 (endpoint "articles" ?slug) ;; evaluates to "api/articles/:slug"
+                          :headers             (auth-header ?token)
+                          ::specs/time         (specs/now)}
+         comments-request (make-comments-request ?slug ?token)]
+     (rules/insert! ::specs/ViewArticleHttpRequest article-request)
      (effects/http-effect ?command-ch article-request)
-     (rules/insert! ::specs/Request #::specs{:request-type :comments
-                                             :request      comments-request})
+     (rules/insert! ::specs/ViewCommentsHttpRequest comments-request)
      (effects/http-effect ?command-ch comments-request))]
 
   [::article-response!
-   [::specs/Request (= :article request-type) (= ?request request)]
-   [::specs/Response (= ?request request) (= ?response response)]
+   [?request <- ::specs/ViewArticleHttpRequest]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
    =>
-   (rules/insert! ::specs/Article (:article ?response))]
+   (rules/insert! ::specs/Article (assoc (specs/ns-keys (:article ?response)) ::specs/time (specs/now)))]
 
-  [::comments-response!
-   [::specs/Request (= :comments request-type) (= ?request request)]
-   [::specs/Response (= ?request request) (= ?response response)]
+  [::editable-article!
+   [?article <- current :from [::specs/Article (= ?slug slug) (= ?author (::specs/username author))]]
+   [::specs/LoggedIn (= ?logged-in-user logged-in-user)]
+   [:test (and (some? ?logged-in-user) (= ?author ?logged-in-user))]
    =>
-   (apply rules/insert! ::specs/Comment (:comments ?response))]
+   (rules/insert! ::specs/EditableArticle ?article)]
 
-  [::can-edit-article!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?article <- ::specs/Article (= ?slug slug) (= ?author (:username author))]
-   [::specs/User (= ?username username)]
+  [::new-article-user-request
+   [:or [:not [?request <- current :from [::specs/EditArticleUserRequest (= specs/new-article EditedArticle)]]]
+    [:and [:and [?request <- current :from [::specs/EditArticleUserRequest (= specs/new-article EditedArticle)]]
+           [::specs/EditArticleUserResponse (= ?request request)]]]]
+   [::specs/LoggedIn (some? logged-in-user)]
+   #_[:or [:test (nil? ?request)]
+    [::specs/EditArticleUserResponse (= ?request request)]]
    =>
-   (rules/upsert! ::specs/Article ?article (assoc ?article ::specs/can-edit (= ?author ?username)))]
+   (println "NUSHIT")
+   (rules/insert! ::specs/EditArticleUserRequest #::specs{:EditedArticle specs/new-article :time (specs/now)})]
 
-  [::can-edit-comment!
-   [::specs/ActivePage (= :article (specs/page-name page))]
-   [?comment <- ::specs/Comment (= ?author (:username author))]
-   [::specs/User (= ?username username)]
+  [::edit-article-user-request!
+   [?article <- ::specs/EditableArticle]
    =>
-   (rules/upsert! ::specs/Comment ?comment (assoc ?comment ::specs/can-edit (= ?author ?username)))]
+   (rules/insert! ::specs/EditArticleUserRequest #::specs{:EditedArticle ?article :time (specs/now)})]
 
-  [::cannot-edit-article!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?article <- ::specs/Article (= ?slug slug)]
-   [:not [::specs/User]]
-   =>
-   (rules/upsert! ::specs/Article ?article (assoc ?article ::specs/can-edit false))]
-
-  [::cannot-edit-comment!
-   [::specs/ActivePage (= :article (specs/page-name page))]
-   [?comment <- ::specs/Comment]
-   [:not [::specs/User]]
-   =>
-   (rules/upsert! ::specs/Comment ?comment (assoc ?comment ::specs/can-edit false))]
-  )
-
-(defrules article-edit-rules
-  [::new-article!
-   [::specs/ActivePage (= :editor (specs/page-name page))]
-   [?new-article <- ::specs/NewArticle]
+  [::edit-article-user-response!
+   [?request <- ::specs/EditArticleUserRequest (= ?article EditedArticle) (= ?slug (::specs/slug EditedArticle))]
+   [::specs/Response (= ?request request)  ]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [request {:method  :post
-                  :uri     (endpoint "articles")
-                  :params  {:article ?new-article}
-                  :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :editor
-                                             :request-data ?new-article
-                                             :request      request})
-     (effects/http-effect ?command-ch request))]
-
-  [::update-article!
-   [::specs/ActivePage (= :editor (specs/page-name page))]
-   [?updated-article <- ::specs/UpdatedArticle (= ?slug slug)]
-   [::specs/Token (= ?token token)]
-   [::specs/AppData (= ?command-ch command-ch)]
-   =>
-   (let [request {:method  :put
-                  :uri     (endpoint "articles" ?slug)
-                  :params  {:article ?updated-article}
-                  :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :editor
-                                             :request-data ?updated-article
-                                             :request      request})
-     (effects/http-effect ?command-ch request))]
-
-  [::delete-article!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?deleted-article <- ::specs/DeletedArticle (= ?slug slug)]
-   [::specs/Token (= ?token token)]
-   [::specs/AppData (= ?command-ch command-ch)]
-   =>
-   (let [request {:method  :delete
-                  :uri     (endpoint "articles" ?slug)
-                  :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :editor
-                                             :request-data ?deleted-article
-                                             :request      request})
+   (let [new? (= specs/new-article ?article)
+         request {:method        (if new? :put :post)
+                  :uri           (if new? (endpoint "articles" ?slug) (endpoint "articles"))
+                  :params        {:article ?article}
+                  :headers       (auth-header ?token)
+                  ::specs/EditedArticle ?article
+                  ::specs/time   (specs/now)}]
+     (rules/insert! ::specs/EditArticleHttpRequest request)
      (effects/http-effect ?command-ch request))]
 
   [::edit-article-response!
-   [::specs/Request (= :editor request-type) (= ?request request) (= ?article-edit request-data)]
-   [::specs/Response (= ?request request) (= ?response response)]
+   [?request <- ::specs/EditArticleHttpRequest (= ?article EditedArticle)]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
+   [::specs/LoggedIn (= ?logged-in-user logged-in-user)]
+   [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (lambdaisland.uniontypes/case-of ::specs/ArticleEdit ?article-edit
-                                    ::specs/NewArticle _
-                                    (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
+   (let [new? (= specs/new-article ?article)
+         article (assoc (specs/ns-keys (:article ?response)) ::specs/time (specs/now))
+         slug (::specs/slug article)
+         comments-request (make-comments-request slug ?token)]
+     (assoc (specs/ns-keys article) ::specs/time (specs/now))
+     (rules/insert! ::specs/Request comments-request)
+     (effects/http-effect ?command-ch comments-request)
+     (when (and new? (some? ?logged-in-user))
+       (rules/insert! ::specs/EditArticleUserRequest #::specs{:EditedArticle specs/new-article
+                                                              :time (specs/now)})))]
 
-                                    ::specs/UpdatedArticle _
-                                    (async/put! ?command-ch [:page {::specs/slug (-> ?response :article :slug)}])
-
-                                    ::specs/DeletedArticle _
-                                    (async/put! ?command-ch [:page :home]))]
-
-  [::remove-article-edits
-   [:not [::specs/ActivePage (= :article (specs/page-name page))]]
-   [?article-edit <- ::specs/ArticleEdit]
+  [::delete-article-user-request!
+   [?article <- ::specs/EditableArticle]
    =>
-   (rules/retract! (rules/spec-type ?article-edit) ?article-edit)])
+   (rules/insert! ::specs/DeleteArticleUserRequest #::specs{:EditableArticle ?article :time (specs/now)})]
 
-(defrules comment-edit-rules
-  [::new-comment!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?new-comment <- ::specs/NewComment]
+  [::delete-article-user-response!
+   [?request <- ::specs/DeleteArticleUserRequest (= ?slug (::specs/slug EditableArticle)) ]
+   [::specs/Response (= ?request request)]
+   [::specs/Token (= ?token token)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (let [request {:method        :delete
+                  :uri           (endpoint "articles" ?slug)
+                  :headers       (auth-header ?token)
+                  ::specs/type   :delete
+                  ::specs/target :server
+                  ::specs/time   (specs/now)}]
+     (rules/insert! ::specs/DeleteArticleHttpRequest request)
+     (effects/http-effect ?command-ch request))]
+
+  [::delete-article-response!
+   [?request <- ::specs/DeleteArticleHttpRequest]
+   [?request <- ::specs/HttpResponse (= ?request request)]
+   [?filter <- ::specs/ArticlesFilter]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (async/put! ?command-ch [:refresh-articles ?filter])])
+
+(defrules comment-rules
+  [::comments-response!
+   [::specs/ViewCommentsHttpRequest (= ?slug slug)]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
+   [::specs/LoggedIn (= ?logged-in-user logged-in-user)]
+   =>
+   (apply rules/insert! ::specs/Comment (map #(assoc (specs/ns-keys %) ::specs/slug ?slug ::specs/time (specs/now))
+                                             (:comments ?response)))
+   (when (some? ?logged-in-user) (rules/insert! ::specs/NewCommentUserRequest #::specs{:slug ?slug :time (specs/now)}))]
+
+  [::new-comment-user-response!
+   [?request <- ::specs/NewCommentUserRequest (= ?slug slug)]
+   [::specs/NewCommentUserResponse (= ?request request) (= ?body body)]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
    (let [request {:method  :post
                   :uri     (endpoint "articles" ?slug "comments")
-                  :params  {:comment ?new-comment}
+                  :params  {:comment {:body ?body}}
                   :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :comments
-                                             :request-data ?new-comment
-                                             :request      request})
+     (rules/insert! ::specs/NewCommentHttpRequest #::specs{:time (specs/now)})
      (effects/http-effect ?command-ch request))]
 
-  [::delete-comment!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?deleted-comment <- ::specs/DeletedComment (= ?id id)]
+  [::new-comment-response!
+   [::specs/NewCommentHttpRequest (= ?slug slug)]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
+   [::specs/LoggedIn (= ?logged-in-user logged-in-user)]
+   =>
+   (rules/insert! ::specs/Comment #(assoc (specs/ns-keys (:comment ?response)) ::specs/slug ?slug ::specs/time (specs/now)))
+   (when (some? ?logged-in-user) (rules/insert! ::specs/NewCommentUserRequest #::specs{:slug ?slug :time (specs/now)}))]
+
+  [::delete-comment-user-request!
+   [?comment <- current :from [::specs/Comment (= ?author (:username author))]]
+   [::specs/LoggedIn (= ?logged-in-user logged-in-user)]
+   [:test (and (some? ?logged-in-user) (= ?author ?logged-in-user))]
+   =>
+   (rules/insert! ::specs/DeleteCommentUserRequest #::specs{:Comment ?comment :time (specs/now)})]
+
+  [::delete-comment-user-response!
+   [?request <- ::specs/DeleteCommentUserRequest (= ?comment Comment) (= ?slug (::specs/slug Comment)) (= ?id (::specs/id Comment))]
+   [::specs/Response (= ?request request)]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
    (let [request {:method  :delete
                   :uri     (endpoint "articles" ?slug "comments" ?id)
-                  :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :comments
-                                             :request-data ?deleted-comment
-                                             :request      request})
+                  :headers (auth-header ?token)
+                  ::specs/Comment ?comment}]
+     (rules/insert! ::specs/DeleteCommentHttpRequest request)
      (effects/http-effect ?command-ch request))]
 
-  [::new-comment-response!
-   [::specs/Request (= :comments request-type) (= ?request request) (= ?new-comment request-data)]
-   [::specs/Response (= ?request request) (= ?response response)]
-   [?new-comment <- ::specs/NewComment]
-   =>
-   (rules/insert! ::specs/Comment (:comment ?response))
-   ;;; TODO - this will not work, forces retraction of the above
-   (rules/retract! ::specs/NewComment ?new-comment)]
-
   [::delete-comment-response!
-   [::specs/Request (= :comments request-type) (= ?request request) (= ?deleted-comment request-data)]
-   [::specs/Response (= ?request request) (= ?response response)]
-   [?deleted-comment <- ::specs/DeletedComment (= ?id id)]
-   [?comment <- ::specs/Comment (= ?id id)]
+   [?request <- ::specs/DeleteCommentHttpRequest (= ?comment Comment)]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
    =>
-   (rules/retract! ::specs/Comment ?comment)
-   (rules/retract! ::specs/DeletedComment ?deleted-comment)]
+   (rules/retract! ::specs/Comment ?comment)])
 
-  [::remove-comment-edits
-   [:not [::specs/ActivePage (= :article (specs/page-name page))]]
-   [?comment-edit <- ::specs/CommentEdit]
-   =>
-   (rules/retract! (rules/spec-type ?comment-edit) ?comment-edit)])
-
-(defrules profile-page-rules
+;;; TODO
+(defrules profile-rules
   [::profile!
-   [::specs/ActivePage (= :profile (specs/page-name page)) (= ?username (::specs/username page))]
+   [::specs/ActivePage (= :profile page) (= ?username (::specs/username page))]
    [::specs/Token (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
@@ -321,7 +313,7 @@
 
   [::profile-articles
    [?page <- ::specs/ActivePage
-    (= :profile (specs/page-name page))
+    (= :profile page)
     (= ?username (::specs/username page))
     (= ?filter (::specs/profile-filter page))]
    [::specs/Token (= ?token token)]
@@ -338,78 +330,115 @@
    =>
    (rules/insert! ::specs/Profile (:profile ?response))])
 
-(defn user-request
-  [req-fact token command-ch]
-  (let [req-type (rules/spec-type req-fact)
-        method (condp = req-type
-                 ::specs/NewUser :post
-                 ::specs/UpdatedUser :put
-                 ::specs/Login :post)
-        uri (condp = req-type
-              ::specs/NewUser (endpoint "user")
-              ::specs/UpdatedUser (endpoint "user")
-              ::specs/Login (endpoint "users" "login"))
-        request {:method  method
-                 :uri     uri
-                 :params  {:user req-fact}
-                 :headers (auth-header token)}]
-    (rules/insert! ::specs/Request #::specs{:request-type :login
-                                            :request-data req-fact
-                                            :request      request})
-    (effects/http-effect command-ch request)))
-
 (defrules user-rules
-  [::user-request!
-   [?user-req <- ::specs/UserReq]
-   [::specs/Token (= ?token token)]
+  [::login-user-request!
+   [::specs/LoggedIn (nil? token)]
+   =>
+   (rules/insert! ::specs/LoginUserRequest #::specs{:time (specs/now)})
+   (rules/insert! ::specs/NewUserRequest #::specs{:time (specs/now)})]
+
+  [::login-user-response!
+   [?request <- ::specs/LoginUserRequest]
+   [::specs/LoginUserResponse (= ?request request) (= ?credentials Credentials)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (user-request ?user-req ?token ?command-ch)]
+   (let [request #::specs{:method :post
+                          :uri (endpoint "users" "login")
+                          :params {:user ?credentials}}]
+     (rules/insert! ::specs/UserHttpRequest request)
+     (effects/http-effect ?command-ch request))]
 
-  [::set-token!
-   [:not [::specs/ActivePage]]
-   [::specs/Token (= ?token token)]
-   [:test (some? ?token)]
+  [::new-user-response!
+   [?request <- ::specs/NewUserRequest]
+   [::specs/NewUserResponse (= ?request request) (= ?user NewUser)]
+   [::specs/AppData (= ?command-ch command-ch)]
+   =>
+   (let [request #::specs{:method :post
+                          :uri (endpoint "user")
+                          :params {:user ?user}}]
+     (rules/insert! ::specs/UserHttpRequest request)
+     (effects/http-effect ?command-ch request))]
+
+  [::token-request!
+   [::specs/LoggedIn (nil? token)]
+   =>
+   (rules/insert! ::specs/TokenRequest #::specs{:time (specs/now)})]
+
+  [::token-response!
+   [?request <- ::specs/TokenRequest]
+   [::specs/TokenResponse (= ?request request) (= ?token token)]
    =>
    (let [request {:method  :get
-                  :uri     (endpoint "user")                ;; evaluates to "api/articles/"
-                  :headers (auth-header ?token)}]
-     (rules/insert! ::specs/Request #::specs{:request-type :login
-                                             :request      request}))]
+                  :uri     (endpoint "user")
+                  :headers (auth-header ?token)
+                  ::specs/time (specs/now)}]
+     (rules/insert! ::specs/UserHttpRequest request)
+     (effects/http-effect ?command-ch request))]
 
-  [::user-response!
-   [?token <- ::specs/Token (= ?token token)]
-   [?Request <- ::specs/Request (= :login request-type) (= ?request request) (= ?user-req request-data)]
-   [?Response <- ::specs/Response (= ?request request) (= ?response response)]
-   [?user-req <- ::specs/UserReq]
+  [::update-user-request!
+   [?user <- ::specs/User]
+   =>
+   (rules/insert! ::specs/UpdateUserRequest #::specs{:user ?user :time (specs/now)})]
+
+  [::update-user-response!
+   [?request <- ::specs/UpdateUserRequest]
+   [::specs/UpdatedUserResponse (= ?request request) (= ?user User)]
+   [::specs/LoggedIn (= ?token token)]
    [::specs/AppData (= ?command-ch command-ch)]
    =>
-   (let [token (-> ?response :user :token)]
-     (rules/insert-unconditional! ::specs/User (:user ?response))
-     (rules/retract! (rules/spec-type ?user-req) ?user-req)
-     (rules/retract! ::specs/Request ?Request)
-     (rules/retract! ::specs/Response ?Response)
-     (async/put! ?command-ch [:set-token token]))])
+   (let [request #::specs{:method :put
+                          :uri (endpoint "user")
+                          :params {:user ?user}
+                          :headers (auth-header ?token)}]
+     (rules/insert! ::specs/UserHttpRequest request)
+     (effects/http-effect ?command-ch request))]
 
-;;; TODO - put this back as queries or use salience to avoid thrashing the view with intermediate states
+  [::user-http-response!
+   [?request <- ::specs/UserHttpRequest]
+   [::specs/HttpResponse (= ?request request) (= ?response response)]
+   [?logged-in <- ::specs/LoggedIn]
+   =>
+   (let [user (specs/ns-keys (:user ?response))
+         token (::specs/token user)
+         username (::specs/username user)]
+     (rules/insert-unconditional! ::specs/User user)
+     (rules/upsert-unconditional! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user username :token token}))]
+
+  [::logout-request!
+   [::specs/LoggedIn (some? token)]
+   =>
+   (rules/insert! ::specs/LogoutRequest #::specs{:time (specs/now)})]
+
+  [::logout-user-response!
+   [?request <- ::specs/LogoutRequest]
+   [::specs/Response (= ?request request)]
+   [?logged-in <- ::specs/LoggedIn]
+   [?user <- ::specs/User]
+   =>
+   (rules/retract! ::specs/User ?user)
+   (rules/upsert-unconditional! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user nil :token nil})])
+
 (defrules view-update-rules
   [::render-active-page!
+   {:salience -1000}
    [?active-page <- ::specs/ActivePage (= ?page page)]
    =>
-   (view/render :page (specs/page-name ?page))]
+   (view/render :page ?page)]
 
   [::render-loading!
+   {:salience -1000}
    [?loading <- (acc/all) :from [::specs/Loading]]
    =>
    (view/render :loading (mapv ::specs/section ?loading))]
 
   [::current-article!
-   [?article <- (acc/max ::specs/time :returns-fact true) :from [::specs/Article (= ?slug slug)]]
+   [?article <- current :from [::specs/Article (= ?slug slug)]]
    =>
    (rules/insert! ::specs/CurrentArticle ?article)]
 
   [::render-articles!
-   [::specs/ActivePage (= :home (specs/page-name page))]
+   {:salience -1000}
+   [::specs/ActivePage (= :home page)]
    [?articles <- (acc/all) :from [::specs/CurrentArticle]]
    [::specs/ArticleCount (= ?count count)]
    =>
@@ -417,21 +446,29 @@
    (view/render :article-count ?count)]
 
   [::render-tags!
-   [::specs/ActivePage (= :home (specs/page-name page))]
+   {:salience -1000}
+   [::specs/ActivePage (= :home page)]
    [?tags <- (acc/all) :from [::specs/Tag]]
    =>
    (view/render :tags (mapv ::specs/tag ?tags))]
 
+  [::current-comment!
+   [?comment <- current :from [::specs/Comment (= ?id id)]]
+   =>
+   (rules/insert! ::specs/CurrentComment ?comment)]
+
   [::render-article!
-   [::specs/ActivePage (= :article (specs/page-name page)) (= ?slug (::specs/slug page))]
-   [?article <- ::specs/Article (= ?slug slug)]
+   {:salience -1000}
+   [::specs/ActivePage (= :article page) (= ?slug (::specs/slug page))]
+   [?article <- ::specs/CurrentArticle (= ?slug slug)]
    [?comments <- (acc/all) :from [::specs/Comment]]
    =>
    (view/render :article ?article)
    (view/render :comments ?comments)]
 
   [::render-profile!
-   [::specs/ActivePage (= :profile (specs/page-name page))]
+   {:salience -1000}
+   [::specs/ActivePage (= :profile page)]
    [?articles <- (acc/all) :from [::specs/Article]]
    [?profile <- ::specs/Profile]
    =>
@@ -443,7 +480,8 @@
 
 (defqueries queries
   [::active-page [] [?active-page <- ::specs/ActivePage (= ?page page)]]
+  [::active-article [] [?active-article <- ::specs/ActiveArticle]]
   [::token [] [?token <- ::specs/Token]]
-  #_[::current-article [] [?article <- (acc/max ::specs/time :returns-fact true) :from [::specs/Article (= ?slug slug)]]]
-  [::request [:?request-data :?type :?target] [?request <- (acc/max ::specs/time :returns-fact true)
-                                              :from [::specs/Request (= ?request-data request-data) (= ?type type) (= ?target target)]]])
+  [::articles-filter [] [?articles-filter <- ::specs/ArticlesFilter]]
+  [::request [:?request-data :?type :?target]
+   [?request <- current :from [::specs/Request (= ?request-data request-data) (= ?type type) (= ?target target)]]])

@@ -16,12 +16,11 @@
             [clara.tools.inspect :as inspect]))
 
 (defsession session [provisdom.conduit.rules/request-response-rules
-                     provisdom.conduit.rules/home-page-rules
-                     provisdom.conduit.rules/article-page-rules
-                     provisdom.conduit.rules/article-edit-rules
-                     provisdom.conduit.rules/comment-edit-rules
+                     provisdom.conduit.rules/articles-list-rules
+                     provisdom.conduit.rules/article-rules
+                     provisdom.conduit.rules/comment-rules
                      provisdom.conduit.rules/favorite-rules
-                     provisdom.conduit.rules/profile-page-rules
+                     provisdom.conduit.rules/profile-rules
                      provisdom.conduit.rules/user-rules
                      provisdom.conduit.rules/view-update-rules
                      provisdom.conduit.rules/queries]
@@ -54,9 +53,9 @@
     (async/go
       (async/>! command-ch [:init session])
       (async/>! command-ch [:set-token token])
-      (async/<! (async/timeout 2000))
-      (async/>! command-ch [:toggle-favorite "bro-tpuq1n" false])
-      (async/<! (async/timeout 1000))
+      #_(async/<! (async/timeout 2000))
+      #_(async/>! command-ch [:toggle-favorite "bro-tpuq1n" false])
+      #_(async/<! (async/timeout 1000))
       #_(async/>! command-ch [:toggle-favorite "bro-tpuq1n" true])
       #_(async/>! command-ch [:toggle-favorite "bro-tpuq1n" false])
       #_(async/>! command-ch [:page :login])
