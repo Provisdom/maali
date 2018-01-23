@@ -1,30 +1,36 @@
 (ns provisdom.todo.specs
-  (:require [clojure.spec.alpha :as s]))
+  (:require [clojure.spec.alpha :as s]
+            [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [def-derive]]))
+
+(defn now [] #?(:clj (System/currentTimeMillis) :cljs (.getTime (js/Date.))))
+(s/def ::time nat-int?)
+(s/def ::Anchor (s/keys :req [::time]))
 
 ;;; Fact specs. Use convention that specs for fact "types" are camel-cased.
 (s/def ::id int?)
 (s/def ::title string?)
-(s/def ::edit boolean?)
 (s/def ::done boolean?)
-(s/def ::Todo (s/keys :req [::id ::title ::edit ::done]))
-(s/def ::todo-attrs (s/keys :opt [::title ::edit ::done]))
+(s/def ::Todo (s/keys :req [::id ::title ::done]))
 
 (s/def ::visibility #{:all :active :completed})
 (s/def ::Visibility (s/keys :req [::visibility]))
 
-(s/def ::count (s/int-in 0 #?(:clj Long/MAX_VALUE :cljs js/Number.MAX_SAFE_INTEGER)))
-(s/def ::Active (s/keys :req [::count]))
-(s/def ::Completed (s/keys :req [::count]))
-
-(s/def ::all-completed boolean?)
-(s/def ::All-Completed (s/keys :req [::all-completed]))
-
-(s/def ::show-clear boolean?)
-(s/def ::Show-Clear (s/keys :req [::show-clear]))
-
-;;; Convenience function to create new ::Todo facts
-(def next-id (atom 0))
-
-(defn new-todo
-  [title]
-  #::{:id (swap! next-id inc) :title title :done false :edit false})
+(s/def ::Request (s/keys :req [::response-fn]))
+(s/def ::Response (s/keys :req [::Request]))
+;;; TODO - add predicate that ensures request conforms to spec?
+(s/def ::response-fn fn? #_(s/fspec :args (s/cat :spec qualified-keyword? :request ::Request)
+                            :ret any?))
+(def-derive ::NewTodoRequest ::Request)
+(def-derive ::NewTodoResponse ::Response (s/merge ::Response (s/keys :req [::Todo])))
+(def-derive ::UpdateTodoRequest ::Request (s/merge ::Request (s/keys :req [::Todo])))
+(def-derive ::UpdateTitleRequest ::UpdateTodoRequest)
+(def-derive ::UpdateTitleResponse ::Response (s/merge ::Response (s/keys :req [::title])))
+(def-derive ::UpdateDoneRequest ::UpdateTodoRequest)
+(def-derive ::UpdateDoneResponse ::Response (s/merge ::Response (s/keys :req [::done])))
+(def-derive ::RetractTodoRequest ::UpdateTodoRequest)
+(def-derive ::RetractTodoResponse ::Response)
+(def-derive ::CompleteAllRequest ::Request (s/merge ::Request (s/keys :req [::done])))
+(def-derive ::RetractCompletedRequest ::Request)
+(s/def ::visibilities (s/coll-of ::visibility))
+(def-derive ::VisibilityRequest ::Request (s/merge ::Request (s/keys :req [::visibilities])))
+(def-derive ::VisibilityResponse ::Response (s/merge ::Response (s/keys :req [::visibility])))

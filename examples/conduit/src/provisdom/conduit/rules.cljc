@@ -402,7 +402,7 @@
          token (::specs/token user)
          username (::specs/username user)]
      (rules/insert-unconditional! ::specs/User user)
-     (rules/upsert-unconditional! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user username :token token}))]
+     (rules/upsert! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user username :token token}))]
 
   [::logout-request!
    [::specs/LoggedIn (some? token)]
@@ -416,7 +416,7 @@
    [?user <- ::specs/User]
    =>
    (rules/retract! ::specs/User ?user)
-   (rules/upsert-unconditional! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user nil :token nil})])
+   (rules/upsert! ::specs/LoggedIn ?logged-in #::specs{:logged-in-user nil :token nil})])
 
 (defrules view-update-rules
   [::render-active-page!

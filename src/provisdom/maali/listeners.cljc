@@ -110,25 +110,25 @@
                         (remove #(= (type %) (type listener)) listeners))))
       session)))
 
-(defn update-with-query-listener-fn
-  "Updates a session by applying command-fn to the command, and handles
+(defn session-reducer-with-query-listener
+  "Updates a session by applying reducer-fn to the command, and handles
    query-listener so query bindings resulting from command can be tracked."
-  [command-fn]
-  (fn [session command]
+  [reducer-fn]
+  (fn [session reducer-args]
     (if session
       (-> session
           (without-listener query-listener)
           (with-listener query-listener)
-          (command-fn command)
+          (reducer-fn reducer-args)
           (rules/fire-rules))
       ;;; Allows for initialization command
-      (-> (command-fn nil command)
+      (-> (reducer-fn nil reducer-args)
           (with-listener query-listener)
           (rules/fire-rules)))))
 
-(defn debug-update-with-query-listener-fn
+(defn debug-session-reducer-with-query-listener
   [command-fn]
-  (let [qfn (update-with-query-listener-fn command-fn)]
+  (let [qfn (session-reducer-with-query-listener command-fn)]
     (fn [session command]
       (-> session
           tracing/trace

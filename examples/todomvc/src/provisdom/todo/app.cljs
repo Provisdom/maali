@@ -6,8 +6,8 @@
             [provisdom.maali.pprint]
             [provisdom.todo.commands :as commands]
             [provisdom.todo.view :as view]
-            [clojure.spec.test.alpha :as st]
             [cljs.core.async :as async]
+            [net.cgrand.xforms :as xforms]
             [cljs.pprint :refer [pprint]]))
 
 
@@ -28,21 +28,21 @@
 (defsession session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
-(defonce command-ch (async/chan 1 commands/update-state-xf))
-(defonce view-ch (async/chan 1))
+#_(defonce command-ch (async/chan 1 commands/update-state-xf))
+#_(defonce view-ch (async/chan 1))
 
-(def init-cmds [[:init session]
+#_(def init-cmds [[:init session]
                 [:update-visibility :all]
                 [:insert-many [(specs/new-todo "Rename Cloact to Reagent")
                                (specs/new-todo "Add undo demo")
                                (specs/new-todo "Make all rendering async")
                                (specs/new-todo "Allow any arguments to component functions")]]])
 
-(async/pipe view/intent-ch command-ch)
+#_(async/pipe view/intent-ch command-ch)
 
 (defn init []
-  (view/run)
-  (async/go-loop [commands (async/<! command-ch)]
+  #_(view/run)
+  #_(async/go-loop [commands (async/<! command-ch)]
     (when commands
       (recur (async/<! command-ch))))
-  (async/onto-chan view/intent-ch init-cmds false))
+  #_(async/onto-chan view/intent-ch init-cmds false))

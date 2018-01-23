@@ -5,6 +5,8 @@
                   [adzerk/boot-cljs-repl "0.3.3" :scope "test"]
                   [adzerk/boot-reload "0.5.2" :scope "test"]
                   [pandeiro/boot-http "0.8.3" :scope "test"]
+                  [crisptrutski/boot-cljs-test "0.3.5-SNAPSHOT" :scope "test"]
+                  [adzerk/boot-test "1.2.0"]
                   [com.cemerick/piggieback "0.2.2" :scope "test"]
                   [org.clojure/tools.nrepl "0.2.13" :scope "test"]
                   [weasel "0.7.0" :scope "test"]
@@ -26,8 +28,11 @@
   '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
   '[adzerk.boot-reload :refer [reload]]
   '[pandeiro.boot-http :refer [serve]]
+  '[adzerk.boot-test            :refer :all]
+  '[crisptrutski.boot-cljs-test :refer [test-cljs report-errors!] :as cljs-test]
   #_'[powerlaces.boot-cljs-devtools :refer [cljs-devtools dirac]]
-  '[boot.repl])
+  '[boot.repl]
+  )
 
 (def +version+ "0.0.1-SNAPSHOT")
 

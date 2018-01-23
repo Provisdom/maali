@@ -87,7 +87,7 @@
      [spec-name]
      (let [composite-forms (if (compiling-cljs?)
                              #{'cljs.spec.alpha/or 'cljs.spec.alpha/merge}
-                             #{'clojure.spec.alpha/or 'cljs.spec.alpha/merge})
+                             #{'clojure.spec.alpha/or 'clojure.spec.alpha/merge})
            form (if (keyword? spec-name) (resolve-spec-form spec-name) spec-name)]
        (cond
          (composite-forms (first form))
@@ -229,24 +229,22 @@
         s' (if (and (not-empty new-items) (not= new-items items)) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
     s'))
 
-(defn upsert!
-  [spec old-fact new-fact]
-  (when old-fact
-    (retract! spec old-fact))
-  (when (and new-fact (not= old-fact new-fact))
-    (insert! spec new-fact)))
-
 #_(defn upsert-f!
     [spec fact f & args]
     (retract! spec fact)
     (insert! spec (apply f fact args)))
 
-(defn upsert-unconditional!
-  [spec old-fact new-fact]
+(defn upsert!
+  [spec old-fact f & args]
   (when old-fact
     (retract! spec old-fact))
-  (when new-fact
+  (when-let [new-fact (apply f old-fact args)]
     (insert-unconditional! spec new-fact)))
+
+(defn upsert-seq!
+  [spec old-fact-seq f & args]
+  (doseq [old-fact old-fact-seq]
+    (apply upsert! spec old-fact f args)))
 
 (defn fire-rules
   [session]
@@ -261,3 +259,12 @@
   [query map-fn & args]
   (fn [session]
     (mapv map-fn (apply rules/query session query args))))
+
+#?(:clj
+   (defmacro def-derive
+     ([child-name parent-name]
+      `(def-derive ~child-name ~parent-name ~parent-name))
+     ([child-name parent-name spec]
+      `(do
+         (#?(:clj clojure.spec.alpha/def :cljs cljs.spec.alpha/def) ~child-name ~spec)
+         (derive ~child-name ~parent-name)))))
