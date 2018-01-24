@@ -351,6 +351,10 @@ label[for='toggle-all'] {
 	font-weight: bold;
 }
 
+#filters li a.inactive {
+	text-decoration: line-through;
+}
+
 #clear-completed {
 	float: right;
 	position: relative;

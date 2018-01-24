@@ -1,7 +1,8 @@
 (ns provisdom.todo.rules
   (:require [clojure.spec.alpha :as s]
-            #?(:clj [clojure.core.async :as async]
-               :cljs[cljs.core.async :as async])
+    #?(:clj
+            [clojure.core.async :as async]
+       :cljs [cljs.core.async :as async])
             [provisdom.todo.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries defsession] :as rules]
             [clara.rules.accumulators :as acc]
@@ -49,7 +50,6 @@
    [?response <- ::specs/Response (= ?request Request)]
    [:not [?request <- ::specs/Request]]
    =>
-   (println ::retracted-request!)
    (rules/retract! ::specs/Response ?response)]
 
   [::anchor!
@@ -109,6 +109,7 @@
 
   [::retract-completed-request!
    [?todos <- (acc/all) :from [::specs/Todo (= true done)]]
+   [:test (not-empty ?todos)]
    =>
    (rules/insert! ::specs/RetractCompletedRequest #::specs{:response-fn (partial response ::specs/Response)})]
 
@@ -123,18 +124,20 @@
    [::specs/Visibility (= ?visibility visibility)]
    [?todos <- (acc/grouping-by ::specs/done) :from [::specs/Todo]]
    =>
-   (println "VIS REQ")
-   (rules/insert! ::specs/VisibilityRequest #::specs{:visibilities (cond-> #{:all}
-                                                                           (not= 0 (count (?todos true))) (conj :completed)
-                                                                           (not= 0 (count (?todos false))) (conj :active))
-                                                     :response-fn  (partial response ::specs/VisibilityResponse)})]
+   (let [visibilities (cond-> #{:all}
+                              (not= 0 (count (?todos true))) (conj :completed)
+                              (not= 0 (count (?todos false))) (conj :active))]
+     (rules/insert! ::specs/VisibilityRequest #::specs{:visibility   ?visibility
+                                                       :visibilities visibilities
+                                                       :response-fn  (partial response ::specs/VisibilityResponse)})
+     #_(when (not (visibilities ?visibility))
+       (rules/upsert ::specs/Visibility ?Visibility assoc ::specs/visibility )))]
 
   [::visibility-response!
    [?request <- ::specs/VisibilityRequest (= ?visibilities visibilities)]
    [::specs/VisibilityResponse (= ?request Request) (= ?visibility visibility) (contains? ?visibilities visibility)]
    [?Visibility <- ::specs/Visibility]
    =>
-   (println "VIS RES")
    (rules/upsert! ::specs/Visibility ?Visibility assoc ::specs/visibility ?visibility)])
 
 ;;; Queries
@@ -146,7 +149,9 @@
   [::complete-all-request [] [?request <- ::specs/CompleteAllRequest]]
   [::retract-complete-request [] [?request <- ::specs/RetractCompletedRequest]]
   [::visibility-request [] [?request <- ::specs/VisibilityRequest]]
-  [::active-count [] [?count <- (acc/count) :from [::specs/Todo (= false done)]]])
+  [::active-count [] [?count <- (acc/count) :from [::specs/Todo (= false done)]]]
+  [::completed-count [] [?count <- (acc/count) :from [::specs/Todo (= true done)]]]
+  [::responses [] [?request <- ::specs/Response]])
 
 (defn many-query-xf
   [results]
@@ -164,19 +169,22 @@
    ::complete-all-request     single-query-xf
    ::retract-complete-request single-query-xf
    ::visibility-request       single-query-xf
-   ::active-count             #(-> % first :?count)})
+   ::active-count             #(-> % first :?count)
+   ::completed-count          #(-> % first :?count)
+   ::responses                many-query-xf})
 
 (defn handle-query-result
   [result]
-  (into {}
-        (map (fn [[k v]] [k ((or (query-xfs k) identity) v)]) result)))
+  (into {} (map (fn [[k v]] [k ((or (query-xfs k) identity) v)]) result)))
 
 (def query-xf (map handle-query-result))
 
 (defsession init-session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
-            {:fact-type-fn rules/spec-type})
+  {:fact-type-fn rules/spec-type})
 
 (def session (-> init-session
                  (listeners/with-listener listeners/query-listener)
                  (rules/insert ::specs/Anchor {::specs/time (specs/now)})
                  (rules/fire-rules)))
+
+(def response->q-results-xf (comp handle-response-xf listeners/query-bindings-xf query-xf))

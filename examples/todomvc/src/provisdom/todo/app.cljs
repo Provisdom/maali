@@ -6,7 +6,7 @@
             [provisdom.maali.pprint]
             [provisdom.todo.commands :as commands]
             [provisdom.todo.view :as view]
-            [cljs.core.async :as async]
+            [cljs.core.async :refer [<! >!] :as async]
             [net.cgrand.xforms :as xforms]
             [cljs.pprint :refer [pprint]]))
 
@@ -28,21 +28,33 @@
 (defsession session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
   {:fact-type-fn rules/spec-type})
 
-#_(defonce command-ch (async/chan 1 commands/update-state-xf))
-#_(defonce view-ch (async/chan 1))
+(defn todo-response
+  [{::todo/keys [new-todo-request] :as result} todo]
+  #_(pr-res result)
+  (let [{::specs/keys [response-fn]} new-todo-request]
+    (response-fn #::specs{:Request new-todo-request :Todo todo})))
 
-#_(def init-cmds [[:init session]
-                [:update-visibility :all]
-                [:insert-many [(specs/new-todo "Rename Cloact to Reagent")
-                               (specs/new-todo "Add undo demo")
-                               (specs/new-todo "Make all rendering async")
-                               (specs/new-todo "Allow any arguments to component functions")]]])
+(def todos [(todo/new-todo "Rename Cloact to Reagent")
+            (todo/new-todo "Add undo demo")
+            (todo/new-todo "Make all rendering async")
+            (todo/new-todo "Allow any arguments to component functions")])
 
-#_(async/pipe view/intent-ch command-ch)
+(defonce r (async/mult todo/response-ch))
 
 (defn init []
-  #_(view/run)
-  #_(async/go-loop [commands (async/<! command-ch)]
-    (when commands
-      (recur (async/<! command-ch))))
-  #_(async/onto-chan view/intent-ch init-cmds false))
+  (view/run)
+  (let [query-ch (async/chan 10 todo/response->q-results-xf)]
+    (async/put! query-ch [nil todo/session])
+    (async/tap r query-ch)
+    (async/go
+      (loop [result (<! query-ch)
+             [todo & todos] todos]
+        (view/update-view result)
+        (when (and result todo)
+          (todo-response result todo)
+          (recur (<! query-ch) todos)))
+
+      (loop [result (<! query-ch)]
+        (when result
+          (view/update-view result)
+          (recur (<! query-ch)))))))
