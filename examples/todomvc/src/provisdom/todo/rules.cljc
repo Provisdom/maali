@@ -129,9 +129,7 @@
                               (not= 0 (count (?todos false))) (conj :active))]
      (rules/insert! ::specs/VisibilityRequest #::specs{:visibility   ?visibility
                                                        :visibilities visibilities
-                                                       :response-fn  (partial response ::specs/VisibilityResponse)})
-     #_(when (not (visibilities ?visibility))
-       (rules/upsert ::specs/Visibility ?Visibility assoc ::specs/visibility )))]
+                                                       :response-fn  (partial response ::specs/VisibilityResponse)}))]
 
   [::visibility-response!
    [?request <- ::specs/VisibilityRequest (= ?visibilities visibilities)]
