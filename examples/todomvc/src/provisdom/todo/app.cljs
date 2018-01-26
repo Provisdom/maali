@@ -4,7 +4,10 @@
             [provisdom.todo.view :as view]
             [provisdom.maali.rules :as rules]
             [cljs.core.async :refer [<! >!] :as async]
-            [cljs.pprint :refer [pprint]]))
+            [clojure.spec.alpha :as s]
+            [clojure.spec.gen.alpha :as sg]
+            [cljs.pprint :refer [pprint]]
+            [provisdom.integration-test :as test]))
 
 #_(st/instrument)
 
@@ -29,6 +32,8 @@
 
 (def session (apply rules/insert todo/session ::specs/Todo todos))
 
+(def *test* false)
+
 (defn init []
   ;;; Initialize the view
   (view/run)
@@ -40,7 +45,9 @@
     ;;; Connect the response channel to the processing pipeline.
     (async/pipe todo/response-ch query-ch)
 
-    (async/go-loop []
-      (when-some [result (<! query-ch)]
-        (view/update-view result)
-        (recur)))))
+    (if *test*
+      (test/abuse query-ch 200 100)
+      (async/go-loop []
+        (when-some [result (<! query-ch)]
+          (view/update-view result)
+          (recur))))))

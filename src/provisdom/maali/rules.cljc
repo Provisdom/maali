@@ -11,7 +11,7 @@
     #?(:clj
             [clojure.spec.alpha :as s])
     #?(:cljs [cljs.spec.alpha :as s])
-            [clara.rules.dsl :as dsl])
+            #?(:clj [clara.rules.dsl :as dsl]))
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -138,7 +138,7 @@
      (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
        (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name))
               (into {} (map (fn [[k v] n]
-                              [k (vary-meta (if (compiling-cljs?) (eval v) v) assoc ::com/rule-load-order n)])
+                              [k (if (compiling-cljs?) (eval v) v)])
                             prods (range))))
        prods)))
 

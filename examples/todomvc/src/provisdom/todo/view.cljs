@@ -41,11 +41,12 @@
                  (if-not (empty? v) (on-save v))
                  (stop)))]
     (fn [{:keys [id class placeholder on-save]}]
+      (enable-console-print!)
       [:input {:type        "text" :value @val
                :id          id :class class :placeholder placeholder
                :on-blur     #(save on-save)
                :on-change   #(reset! val (-> % .-target .-value))
-               :on-key-down #(case (.-which %)
+               :on-key-down #(case (.-keyCode %)
                                13 (save on-save)
                                27 (stop)
                                nil)}])))

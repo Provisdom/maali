@@ -36,10 +36,8 @@
     (drop 1)))                                              ;;; drop the initial nil value
 
 ;;; Convenience function to create new ::Todo facts
-(def id (atom 0))
-(defn next-id [] (swap! id inc))
 (defn new-todo
-  ([title] (new-todo (next-id) title))
+  ([title] (new-todo (random-uuid) title))
   ([id title]
    #::specs{:id id :title title :done false}))
 
@@ -58,7 +56,6 @@
     so insert unconditionally here."
    [::specs/Anchor (= ?time time)]
    =>
-   (println "ANCHOR")
    (rules/insert-unconditional! ::specs/Visibility {::specs/visibility :all})
    (rules/insert-unconditional! ::specs/NewTodoRequest {::specs/response-fn (partial response ::specs/NewTodoResponse)})]
 
