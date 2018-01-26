@@ -11,6 +11,8 @@
 
 #_(st/instrument)
 
+(enable-console-print!)
+
 (set! (.-onerror js/window) #(do
                                (println "I wish this actually caught all exceptions.")
                                (when-let [explanation (-> % ex-data :explanation)] (pprint explanation))
@@ -32,7 +34,7 @@
 
 (def session (apply rules/insert todo/session ::specs/Todo todos))
 
-(def *test* false)
+(def *test* :async)
 
 (defn init []
   ;;; Initialize the view
@@ -45,9 +47,11 @@
     ;;; Connect the response channel to the processing pipeline.
     (async/pipe todo/response-ch query-ch)
 
-    (if *test*
-      (test/abuse query-ch 200 100)
-      (async/go-loop []
-        (when-some [result (<! query-ch)]
-          (view/update-view result)
-          (recur))))))
+    (condp = *test*
+      :sync (test/abuse 1000 20)
+      :async (test/abuse-async 1000 20 10)
+      nil)
+    (async/go-loop []
+      (when-some [result (<! query-ch)]
+        (view/update-view result)
+        (recur)))))

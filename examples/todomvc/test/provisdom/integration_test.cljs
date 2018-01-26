@@ -24,16 +24,43 @@
   (rand-nth (filter #(isa? (rules/spec-type %) ::specs/Request) (apply concat (map #(if (seq? %) % [%]) (vals query-results))))))
 
 (defn abuse
-  [query-ch iterations delay-ms]
-  (async/go-loop [i 0]
-    (enable-console-print!)
-    (when (< i iterations)
-      (when-some [result (<! query-ch)]
-        (view/update-view result)
-        (let [request (select-request @view/view-state)
-              response-fn (::specs/response-fn request)
-              response (gen-response request)]
-          (response-fn response))
-        (<! (async/timeout delay-ms))
-        (recur (inc i))))
-    (println "DONE!")))
+  [iterations delay-ms]
+  (let [view-ch (async/chan 1)]
+    (add-watch view/view-state :view
+               (fn [_ _ _ query-results]
+                 (async/put! view-ch query-results)))
+    (async/go-loop [i 0]
+      (enable-console-print!)
+      (when (< i iterations)
+        (when-some [result (<! view-ch)]
+          (let [request (select-request result)
+                response-fn (::specs/response-fn request)
+                response (gen-response request)]
+            (response-fn response))
+          (<! (async/timeout delay-ms))
+          (recur (inc i))))
+      (remove-watch view/view-state :view)
+      (println "DONE!"))))
+
+
+(defn abuse-async
+  [iterations delay-ms max-responses]
+  (let [view-ch (async/chan 1)]
+    (add-watch view/view-state :view
+               (fn [_ _ _ query-results]
+                 (async/put! view-ch query-results)))
+    (async/go-loop [i 0]
+      (enable-console-print!)
+      (when (< i iterations)
+        (let [[result port] (async/alts! [view-ch (async/timeout delay-ms)])
+              n (if (< (rand) (/ 2 (dec max-responses))) (rand-int max-responses) 0)
+              requests (if (= port view-ch) (repeatedly n #(select-request result)) [(select-request @view/view-state)])]
+          (doseq [request requests]
+            (let [response-fn (::specs/response-fn request)
+                  response (gen-response request)]
+              (response-fn response)))
+          (<! (async/timeout delay-ms))
+          (recur (+ i (inc n)))))
+      (remove-watch view/view-state :view)
+      (println "DONE!"))))
+
