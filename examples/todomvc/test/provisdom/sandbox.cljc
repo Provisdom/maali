@@ -2,11 +2,7 @@
   (:require [clojure.core.async :as async :refer [<! >!]]
             [provisdom.todo.rules :as todo]
             [provisdom.todo.specs :as specs]
-            [provisdom.todo.app :as app]
-            [provisdom.maali.listeners :as listeners]
-            [provisdom.maali.pprint :refer-macros [pprint]]))
-
-(enable-console-print!)
+            [clojure.pprint :refer [pprint]]))
 
 #_(pprint provisdom.todo.rules/queries)
 
@@ -35,6 +31,15 @@
   (async/tap r query-ch)
   (async/put! query-ch [nil todo/session])
   (async/go
+    (println "GO BABY!!!!!")
+    (pr-res (<! query-ch))
+    (async/untap r query-ch)))
+
+(let [query-ch (async/chan 10 todo/response->q-results-xf)]
+  (async/tap r query-ch)
+  (async/put! query-ch [nil todo/session])
+  (async/go
+    (println "GO BABY!!!!!")
     (todo-response (<! query-ch) td1)
     (todo-response (<! query-ch) td2)
     (let [result (<! query-ch)

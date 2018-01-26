@@ -27,7 +27,7 @@
   (right-retract! [listener node elements]
     (append-trace listener {:type :right-retract :node node :elements elements}))
 
-  (insert-facts! [listener facts]
+  (insert-facts! [listener node token facts]
     (append-trace listener {:type :add-facts :facts facts}))
 
   (alpha-activate! [listener node facts]
@@ -36,7 +36,7 @@
   (insert-facts-logical! [listener node token facts]
     (append-trace listener {:type :add-facts-logical :token token :facts facts}))
 
-  (retract-facts! [listener facts]
+  (retract-facts! [listener node token facts]
     (append-trace listener {:type :retract-facts :facts facts}))
 
   (alpha-retract! [listener node facts]

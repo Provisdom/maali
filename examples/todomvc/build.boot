@@ -15,9 +15,7 @@
                   [powerlaces/boot-cljs-devtools "0.2.0" :scope "test"]
 
                   [org.clojure/spec.alpha "0.1.143"]
-                  [com.cerner/clara-rules "0.17.0-SNAPSHOT"]
                   [net.cgrand/xforms "0.15.0"]
-                  [lambdaisland/uniontypes "0.3.0"]
                   [org.clojure/test.check "0.9.0"]
                   [reagent "0.8.0-alpha2"]
                   [org.clojure/core.async "0.3.465"]

@@ -26,13 +26,13 @@
 
   (right-retract! [listener node elements])
 
-  (insert-facts! [listener facts])
+  (insert-facts! [listener node token facts])
 
   (alpha-activate! [listener node facts])
 
   (insert-facts-logical! [listener node token facts])
 
-  (retract-facts! [listener facts])
+  (retract-facts! [listener node token facts])
 
   (alpha-retract! [listener node facts])
 

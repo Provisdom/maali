@@ -1,20 +1,17 @@
 (ns provisdom.todo.rules
   (:require [clojure.spec.alpha :as s]
-    #?(:clj
             [clojure.core.async :as async]
-       :cljs [cljs.core.async :as async])
             [provisdom.todo.specs :as specs]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [defrules defqueries defsession] :as rules]
             [clara.rules.accumulators :as acc]
             [provisdom.maali.listeners :as listeners]
             [net.cgrand.xforms :as xforms]))
 
-(enable-console-print!)
-
-(def current (acc/max ::specs/time :returns-fact true))
-
+;;; Input channel for responses
 (def response-ch (async/chan 10))
 
+;;; Used to fill in the ::specs/response-fn field in requests. The code which responds
+;;; to a request can use ::specs/response-fn to provide the response.
 (defn response
   [spec response]
   (if (s/valid? spec response)
@@ -22,6 +19,7 @@
     (throw (ex-info (str "Invalid response - must conform to spec " spec)
                     {:response response :spec spec :explanation (s/explain-data spec response)}))))
 
+;;; Reducing function to produce the new session from a supplied response.
 (defn handle-response
   [session [spec response]]
   (if session
@@ -30,7 +28,8 @@
         (rules/fire-rules))
     response))
 
-
+;;; Transducer which takes in responses and provides reductions over the handle-response function,
+;;; i.e. updated sessions.
 (def handle-response-xf
   (comp
     (xforms/reductions (listeners/session-reducer-with-query-listener handle-response) nil)
@@ -46,19 +45,25 @@
 
 ;;; Rules
 (defrules rules
-  [::retracted-request!
+  [::retract-orphan-response!
+   "Responses are inserted unconditionally from outside the rule engine, so
+    explicitly retract any responses without a corresponding request."
    [?response <- ::specs/Response (= ?request Request)]
    [:not [?request <- ::specs/Request]]
    =>
    (rules/retract! ::specs/Response ?response)]
 
   [::anchor!
+   "Initialize visibility and the request for a new todo. Both are singletons
+    so insert unconditionally here."
    [::specs/Anchor (= ?time time)]
    =>
+   (println "ANCHOR")
    (rules/insert-unconditional! ::specs/Visibility {::specs/visibility :all})
    (rules/insert-unconditional! ::specs/NewTodoRequest {::specs/response-fn (partial response ::specs/NewTodoResponse)})]
 
   [::new-todo-response!
+   "Handle a new todo."
    [?request <- ::specs/NewTodoRequest]
    [::specs/NewTodoResponse (= ?request Request) (= ?todo Todo)]
    =>
@@ -66,6 +71,8 @@
    (rules/upsert! ::specs/NewTodoRequest ?request assoc ::specs/time (specs/now))]
 
   [::update-request!
+   "When visibility changes or a new todo is inserted, conditionally insert
+    requests to update todos."
    [::specs/Visibility (= ?visibility visibility)]
    [?todo <- ::specs/Todo (condp = ?visibility
                             :all true
@@ -77,30 +84,37 @@
    (rules/insert! ::specs/RetractTodoRequest #::specs{:Todo ?todo :response-fn (partial response ::specs/Response)})]
 
   [::update-title-response!
+   "Handle response to a title update request."
    [?request <- ::specs/UpdateTitleRequest (= ?todo Todo)]
    [::specs/UpdateTitleResponse (= ?request Request) (= ?title title)]
    =>
    (rules/upsert! ::specs/Todo ?todo assoc ::specs/title ?title)]
 
   [::update-done-response!
+   "Handle response to a one update request."
    [?request <- ::specs/UpdateDoneRequest (= ?todo Todo)]
    [::specs/UpdateDoneResponse (= ?request Request) (= ?done done)]
    =>
    (rules/upsert! ::specs/Todo ?todo assoc ::specs/done ?done)]
 
   [::retract-todo-response!
+   "Handle response to retract todo request."
    [?request <- ::specs/RetractTodoRequest (= ?todo Todo)]
    [::specs/Response (= ?request Request)]
    =>
    (rules/retract! ::specs/Todo ?todo)]
 
   [::complete-all-request!
+   "Toggles the done attribute of all todos. If all todos are not done,
+    then the request implies we set them all to done. If all todos are
+    done, then the request means we will set them all to not done."
    [?todos <- (acc/grouping-by ::specs/done) :from [::specs/Todo]]
    =>
    (rules/insert! ::specs/CompleteAllRequest #::specs{:done        (not= 0 (count (?todos false)))
                                                       :response-fn (partial response ::specs/Response)})]
 
   [::complete-all-response!
+   "Handle response to complete all request."
    [?request <- ::specs/CompleteAllRequest (= ?done done)]
    [::specs/Response (= ?request Request)]
    [?todos <- (acc/all) :from [::specs/Todo (= (not ?done) done)]]
@@ -108,12 +122,14 @@
    (rules/upsert-seq! ::specs/Todo ?todos update ::specs/done not)]
 
   [::retract-completed-request!
+   "Request to retract all todo's marked done."
    [?todos <- (acc/all) :from [::specs/Todo (= true done)]]
    [:test (not-empty ?todos)]
    =>
    (rules/insert! ::specs/RetractCompletedRequest #::specs{:response-fn (partial response ::specs/Response)})]
 
   [::retract-completed-response!
+   "Handle response to retract completed request."
    [?request <- ::specs/RetractCompletedRequest]
    [::specs/Response (= ?request Request)]
    [?todos <- (acc/all) :from [::specs/Todo (= true done)]]
@@ -121,6 +137,9 @@
    (apply rules/retract! ::specs/Todo ?todos)]
 
   [::visibility-request!
+   "Request to update the visibility. Includes the valid choices for
+    visibility given the current set of todos, e.g. if no todos are
+    marked done, don't include completed as a valid option."
    [::specs/Visibility (= ?visibility visibility)]
    [?todos <- (acc/grouping-by ::specs/done) :from [::specs/Todo]]
    =>
@@ -132,6 +151,7 @@
                                                        :response-fn  (partial response ::specs/VisibilityResponse)}))]
 
   [::visibility-response!
+   "Handle response to visibility request."
    [?request <- ::specs/VisibilityRequest (= ?visibilities visibilities)]
    [::specs/VisibilityResponse (= ?request Request) (= ?visibility visibility) (contains? ?visibilities visibility)]
    [?Visibility <- ::specs/Visibility]
@@ -148,28 +168,30 @@
   [::retract-complete-request [] [?request <- ::specs/RetractCompletedRequest]]
   [::visibility-request [] [?request <- ::specs/VisibilityRequest]]
   [::active-count [] [?count <- (acc/count) :from [::specs/Todo (= false done)]]]
-  [::completed-count [] [?count <- (acc/count) :from [::specs/Todo (= true done)]]]
-  [::responses [] [?request <- ::specs/Response]])
+  [::completed-count [] [?count <- (acc/count) :from [::specs/Todo (= true done)]]])
 
 (defn many-query-xf
-  [results]
-  (mapv :?request results))
+  [map-fn results]
+  (mapv map-fn results))
 
 (defn single-query-xf
-  [results]
-  (-> results first :?request))
+  [map-fn results]
+  (-> results first map-fn))
+
+(def many-requests-xf (partial many-query-xf :?request))
+(def single-request-xf (partial single-query-xf :?request))
+(def count-xf (partial single-query-xf :?count))
 
 (def query-xfs
-  {::new-todo-request         single-query-xf
-   ::update-title-requests    many-query-xf
-   ::update-done-requests     many-query-xf
-   ::retract-todo-requests    many-query-xf
-   ::complete-all-request     single-query-xf
-   ::retract-complete-request single-query-xf
-   ::visibility-request       single-query-xf
-   ::active-count             #(-> % first :?count)
-   ::completed-count          #(-> % first :?count)
-   ::responses                many-query-xf})
+  {::new-todo-request         single-request-xf
+   ::update-title-requests    many-requests-xf
+   ::update-done-requests     many-requests-xf
+   ::retract-todo-requests    many-requests-xf
+   ::complete-all-request     single-request-xf
+   ::retract-complete-request single-request-xf
+   ::visibility-request       single-request-xf
+   ::active-count             count-xf
+   ::completed-count          count-xf})
 
 (defn handle-query-result
   [result]

@@ -10,7 +10,8 @@
             [clara.rules.compiler :as com])
     #?(:clj
             [clojure.spec.alpha :as s])
-    #?(:cljs [cljs.spec.alpha :as s]))
+    #?(:cljs [cljs.spec.alpha :as s])
+            [clara.rules.dsl :as dsl])
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -55,7 +56,7 @@
 (s/def ::rhs (s/+ list?))
 (s/def ::params (s/coll-of keyword? :type vector?))
 (s/def ::query (s/cat :name keyword? :params ::params :lhs ::lhs))
-(s/def ::rule (s/cat :name keyword? :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
+(s/def ::rule (s/cat :name keyword? :doc (s/? string?) :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
 
 #?(:clj
    (defmacro deffacttype
@@ -134,8 +135,11 @@
 #?(:clj
    (defn build-prods
      [defs-name defs build-fn]
-     (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (apply build-fn name def))])) defs)]
-       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) (into {} (map (fn [[k v]] [k (eval v)])) prods))
+     (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
+       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name))
+              (into {} (map (fn [[k v] n]
+                              [k (vary-meta (if (compiling-cljs?) (eval v) v) assoc ::com/rule-load-order n)])
+                            prods (range))))
        prods)))
 
 ;;; TODO - spec rules/queries and validate to avoid obscure exceptions
@@ -149,7 +153,7 @@
            (println (str "Rule in " rules-name " failed spec"))
            (pprint e)
            (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation (s/explain-str ::rule rule)})))))
-     (let [prods (build-prods rules-name rules macros/build-rule)]
+     (let [prods (build-prods rules-name rules dsl/build-rule)]
        `(def ~rules-name ~prods))))
 
 #?(:clj
@@ -161,7 +165,7 @@
            (println (str "Query in " queries-name " failed spec"))
            (pprint e)
            (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation (s/explain-str ::query query)})))))
-     (let [prods (build-prods queries-name queries macros/build-query)]
+     (let [prods (build-prods queries-name queries dsl/build-query)]
        `(def ~queries-name ~prods))))
 
 #?(:clj
@@ -179,8 +183,11 @@
 #?(:clj
    (defmacro defsession
      [name sources options]
-     (let [prods (vec (vals (names-unique (apply concat (map @productions sources)))))]
-       `(def ~name ~(macros/productions->session-assembly-form prods options)))))
+     (if (compiling-cljs?)
+       (let [prods (vec (vals (names-unique (apply concat (map @productions sources)))))]
+         `(def ~name ~(macros/productions->session-assembly-form prods options)))
+       (let [sources-and-options (into [`(mapcat vals ~sources)] (mapcat identity options))]
+         `(def ~name (com/mk-session ~sources-and-options))))))
 
 (defn check-and-spec
   [spec facts]
@@ -228,11 +235,6 @@
         s (if (not-empty items) (apply retract session spec items) session)
         s' (if (and (not-empty new-items) (not= new-items items)) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
     s'))
-
-#_(defn upsert-f!
-    [spec fact f & args]
-    (retract! spec fact)
-    (insert! spec (apply f fact args)))
 
 (defn upsert!
   [spec old-fact f & args]
