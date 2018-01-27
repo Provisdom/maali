@@ -201,7 +201,7 @@
 
 (def session (-> init-session
                  (listeners/with-listener listeners/query-listener)
-                 (rules/insert ::specs/Anchor {::specs/time (specs/now)})
+                 (rules/insert ::specs/Anchor {} #_{::specs/time (specs/now)})
                  (rules/fire-rules)))
 
 (def response->q-results-xf (comp handle-response-xf listeners/query-bindings-xf query-xf))

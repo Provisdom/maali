@@ -48,9 +48,22 @@
    (defprotocol TypeInfo
      (gettype [this])))
 
+(defn throw-when-not-valid
+  [x spec]
+  (when-let [e (s/explain-data spec x)]
+    #?(:cljs
+       (do
+         (enable-console-print!)
+         (.error js/console (str "Data failed spec " (pr-str spec)))
+         (pprint e)))
+    (throw (ex-info (str "Data failed spec " (pr-str spec)) {:fact x :explanation (s/explain-str spec x)})))
+  x)
+
 (defn spec-type
   ([x] (-> x meta ::spec-type))
-  ([x s] (with-meta x {::spec-type s})))
+  ([x spec]
+   (throw-when-not-valid x spec)
+   (with-meta x {::spec-type spec})))
 
 (s/def ::lhs (s/+ vector?))
 (s/def ::rhs (s/+ list?))
@@ -193,12 +206,7 @@
   [spec facts]
   (let [form (@cljs.spec.alpha/registry-ref spec)]
     (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " (pr-str spec)) {:spec spec}))))
-  (mapv #(if-let [e (s/explain-data spec %)]
-           (do
-             (pprint e)
-             (throw (ex-info (str "Fact failed spec " (pr-str spec)) {:fact % :explanation (s/explain-str spec %)})))
-           (spec-type % spec))
-        facts))
+  (mapv #(spec-type % spec) facts))
 
 (defn insert
   [session spec & facts]

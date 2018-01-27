@@ -7,16 +7,12 @@
             [clojure.spec.alpha :as s]
             [clojure.spec.gen.alpha :as sg]
             [cljs.pprint :refer [pprint]]
+            [cljs.stacktrace :as stacktrace]
             [provisdom.integration-test :as test]))
 
 #_(st/instrument)
 
-(enable-console-print!)
-
-(set! (.-onerror js/window) #(do
-                               (println "I wish this actually caught all exceptions.")
-                               (when-let [explanation (-> % ex-data :explanation)] (pprint explanation))
-                               (pprint %)))
+#_(enable-console-print!)
 
 (defn reload
   [])
@@ -34,7 +30,7 @@
 
 (def session (apply rules/insert todo/session ::specs/Todo todos))
 
-(def *test* :async)
+(def *test* nil)
 
 (defn init []
   ;;; Initialize the view
