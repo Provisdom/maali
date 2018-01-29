@@ -36,10 +36,12 @@
     (drop 1)))                                              ;;; drop the initial nil value
 
 ;;; Convenience function to create new ::Todo facts
+(defn now [] #?(:clj (System/currentTimeMillis) :cljs (.getTime (js/Date.))))
+
 (defn new-todo
-  ([title] (new-todo (random-uuid) title))
-  ([id title]
-   #::specs{:id id :title title :done false}))
+  ([title] (new-todo title (now)))
+  ([title time]
+   #::specs{:id (random-uuid) :title title :done false :created-at time}))
 
 ;;; Rules
 (defrules rules
@@ -65,16 +67,12 @@
    [::specs/NewTodoResponse (= ?request Request) (= ?todo Todo)]
    =>
    (rules/insert-unconditional! ::specs/Todo ?todo)
-   (rules/upsert! ::specs/NewTodoRequest ?request assoc ::specs/time (specs/now))]
+   (rules/upsert! ::specs/NewTodoRequest ?request assoc ::specs/time (now))]
 
   [::update-request!
    "When visibility changes or a new todo is inserted, conditionally insert
     requests to update todos."
-   [::specs/Visibility (= ?visibility visibility)]
-   [?todo <- ::specs/Todo (condp = ?visibility
-                            :all true
-                            :active (= false done)
-                            :completed (= true done))]
+   [?todo <- ::specs/Todo]
    =>
    (rules/insert! ::specs/UpdateTitleRequest #::specs{:Todo ?todo :response-fn (partial response ::specs/UpdateTitleResponse)})
    (rules/insert! ::specs/UpdateDoneRequest #::specs{:Todo ?todo :response-fn (partial response ::specs/UpdateDoneResponse)})
@@ -156,52 +154,29 @@
    (rules/upsert! ::specs/Visibility ?Visibility assoc ::specs/visibility ?visibility)])
 
 ;;; Queries
-(defqueries queries
-  [::new-todo-request [] [?request <- ::specs/NewTodoRequest]]
-  [::update-title-requests [] [?request <- ::specs/UpdateTitleRequest]]
-  [::update-done-requests [] [?request <- ::specs/UpdateDoneRequest]]
-  [::retract-todo-requests [] [?request <- ::specs/RetractTodoRequest]]
-  [::complete-all-request [] [?request <- ::specs/CompleteAllRequest]]
-  [::retract-complete-request [] [?request <- ::specs/RetractCompletedRequest]]
-  [::visibility-request [] [?request <- ::specs/VisibilityRequest]]
+(defqueries view-queries
+  [::visible-todos []
+   [::specs/Visibility (= ?visibility visibility)]
+   [?todo <- ::specs/Todo (condp = ?visibility
+                            :all true
+                            :active (= false done)
+                            :completed (= true done))]]
   [::active-count [] [?count <- (acc/count) :from [::specs/Todo (= false done)]]]
   [::completed-count [] [?count <- (acc/count) :from [::specs/Todo (= true done)]]])
 
-(defn many-query-xf
-  [map-fn results]
-  (mapv map-fn results))
+(defqueries request-queries
+  [::new-todo-request [] [?request <- ::specs/NewTodoRequest]]
+  [::update-title-request [:?todo] [?request <- ::specs/UpdateTitleRequest (= ?todo Todo)]]
+  [::update-done-request [:?todo] [?request <- ::specs/UpdateDoneRequest (= ?todo Todo)]]
+  [::retract-todo-request [:?todo] [?request <- ::specs/RetractTodoRequest (= ?todo Todo)]]
+  [::complete-all-request [] [?request <- ::specs/CompleteAllRequest]]
+  [::retract-complete-request [] [?request <- ::specs/RetractCompletedRequest]]
+  [::visibility-request [] [?request <- ::specs/VisibilityRequest]])
 
-(defn single-query-xf
-  [map-fn results]
-  (-> results first map-fn))
-
-(def many-requests-xf (partial many-query-xf :?request))
-(def single-request-xf (partial single-query-xf :?request))
-(def count-xf (partial single-query-xf :?count))
-
-(def query-xfs
-  {::new-todo-request         single-request-xf
-   ::update-title-requests    many-requests-xf
-   ::update-done-requests     many-requests-xf
-   ::retract-todo-requests    many-requests-xf
-   ::complete-all-request     single-request-xf
-   ::retract-complete-request single-request-xf
-   ::visibility-request       single-request-xf
-   ::active-count             count-xf
-   ::completed-count          count-xf})
-
-(defn handle-query-result
-  [result]
-  (into {} (map (fn [[k v]] [k ((or (query-xfs k) identity) v)]) result)))
-
-(def query-xf (map handle-query-result))
-
-(defsession init-session [provisdom.todo.rules/rules provisdom.todo.rules/queries]
+(defsession init-session [provisdom.todo.rules/rules provisdom.todo.rules/view-queries provisdom.todo.rules/request-queries]
   {:fact-type-fn rules/spec-type})
 
 (def session (-> init-session
                  (listeners/with-listener listeners/query-listener)
-                 (rules/insert ::specs/Anchor {::specs/time (specs/now)})
+                 (rules/insert ::specs/Anchor {::specs/time (now)})
                  (rules/fire-rules)))
-
-(def response->q-results-xf (comp handle-response-xf listeners/query-bindings-xf query-xf))

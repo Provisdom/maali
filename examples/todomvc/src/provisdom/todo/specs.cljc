@@ -4,7 +4,6 @@
             [clojure.test.check.generators]
             [provisdom.maali.rules #?(:clj :refer :cljs :refer-macros) [def-derive]]))
 
-(defn now [] #?(:clj (System/currentTimeMillis) :cljs (.getTime (js/Date.))))
 (s/def ::time nat-int?)
 (s/def ::Anchor (s/keys :req [::time]))
 
@@ -12,6 +11,7 @@
 (s/def ::id uuid?)
 (s/def ::title string?)
 (s/def ::done boolean?)
+(s/def ::created-at ::time)
 (s/def ::Todo (s/keys :req [::id ::title ::done]))
 
 (s/def ::visibility #{:all :active :completed})

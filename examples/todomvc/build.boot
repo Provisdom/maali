@@ -17,7 +17,7 @@
                   [org.clojure/spec.alpha "0.1.143"]
                   [net.cgrand/xforms "0.15.0"]
                   [org.clojure/test.check "0.9.0"]
-                  [reagent "0.8.0-alpha2"]
+                  [rum "0.10.8"]
                   [org.clojure/core.async "0.3.465"]
                   [provisdom/maali "0.0.1-SNAPSHOT"]])
 

@@ -19,48 +19,53 @@
   [request]
   (let [response (sg/generate (s/gen (specs/request->response (rules/spec-type request))))]
     (assoc response ::specs/Request request)))
+
 (defn select-request
-  [query-results]
-  (rand-nth (filter #(isa? (rules/spec-type %) ::specs/Request) (apply concat (map #(if (seq? %) % [%]) (vals query-results))))))
+  [session]
+  (loop [i 0]
+    (when (< i 100)
+      (let [query (rand-nth (keys todo/request-queries))
+            requests (rules/query session query)]
+        (if (empty? requests)
+          (recur (inc i))
+          (:?request (rand-nth requests)))))))
 
 (defn abuse
-  [iterations delay-ms]
-  (let [view-ch (async/chan 1)]
-    (add-watch view/view-state :view
-               (fn [_ _ _ query-results]
-                 (async/put! view-ch query-results)))
-    (async/go-loop [i 0]
-      (enable-console-print!)
-      (when (< i iterations)
-        (when-some [result (<! view-ch)]
-          (let [request (select-request result)
-                response-fn (::specs/response-fn request)
-                response (gen-response request)]
-            (response-fn response))
-          (<! (async/timeout delay-ms))
-          (recur (inc i))))
-      (remove-watch view/view-state :view)
-      (println "DONE!"))))
+  [session-ch iterations delay-ms]
+  (async/go-loop [i 0]
+    (enable-console-print!)
+    (when (< i iterations)
+      (when-some [session (<! session-ch)]
+        (view/run session)
+        (let [request (select-request session)
+              response-fn (::specs/response-fn request)
+              response (gen-response request)]
+          (response-fn response))
+        (<! (async/timeout delay-ms))
+        (recur (inc i))))
+    (println "DONE!")))
 
 
 (defn abuse-async
-  [iterations delay-ms max-responses]
-  (let [view-ch (async/chan 1)]
-    (add-watch view/view-state :view
-               (fn [_ _ _ query-results]
-                 (async/put! view-ch query-results)))
-    (async/go-loop [i 0]
-      (enable-console-print!)
-      (when (< i iterations)
-        (let [[result port] (async/alts! [view-ch (async/timeout delay-ms)])
-              n (if (< (rand) (/ 2 (dec max-responses))) (rand-int max-responses) 0)
-              requests (if (= port view-ch) (repeatedly n #(select-request result)) [(select-request @view/view-state)])]
-          (doseq [request requests]
-            (let [response-fn (::specs/response-fn request)
-                  response (gen-response request)]
-              (response-fn response)))
+  [session-ch iterations delay-ms max-responses]
+  (async/go-loop [i 0
+                  session (<! session-ch)]
+    (view/run session)
+    (enable-console-print!)
+    (when (< i iterations)
+      (let [n (if (< (rand) (/ 2 (dec max-responses))) (rand-int max-responses) 0)
+            requests (repeatedly n #(select-request session))]
+        (let [s (if (= 0 n)
+                  session
+                  (loop [[request & requests] requests
+                         session session]
+                    (if request
+                      (let [response-fn (::specs/response-fn request)
+                            response (gen-response request)]
+                        (response-fn response)
+                        (recur requests (<! session-ch)))
+                      session)))]
           (<! (async/timeout delay-ms))
-          (recur (+ i (inc n)))))
-      (remove-watch view/view-state :view)
-      (println "DONE!"))))
+          (recur (+ i (inc n)) s))))
+    (println "DONE!")))
 

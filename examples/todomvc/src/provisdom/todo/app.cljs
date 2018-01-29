@@ -4,15 +4,12 @@
             [provisdom.todo.view :as view]
             [provisdom.maali.rules :as rules]
             [cljs.core.async :refer [<! >!] :as async]
-            [clojure.spec.alpha :as s]
-            [clojure.spec.gen.alpha :as sg]
             [cljs.pprint :refer [pprint]]
-            [cljs.stacktrace :as stacktrace]
             [provisdom.integration-test :as test]))
 
 #_(st/instrument)
 
-#_(enable-console-print!)
+(enable-console-print!)
 
 (defn reload
   [])
@@ -23,31 +20,29 @@
   (let [{::specs/keys [response-fn]} new-todo-request]
     (response-fn #::specs{:Request new-todo-request :Todo todo})))
 
-(def todos [(todo/new-todo "Rename Cloact to Reagent")
-            (todo/new-todo "Add undo demo")
-            (todo/new-todo "Make all rendering async")
-            (todo/new-todo "Allow any arguments to component functions")])
+(def todos [(todo/new-todo "Rename Cloact to Reagent" 1)
+            (todo/new-todo "Add undo demo" 2)
+            (todo/new-todo "Make all rendering async" 3)
+            (todo/new-todo "Allow any arguments to component functions" 4)])
 
 (def session (apply rules/insert todo/session ::specs/Todo todos))
 
 (def *test* nil)
 
 (defn init []
-  ;;; Initialize the view
-  (view/run)
+  #_(reset! view/session-atom (rules/fire-rules session))
 
-  (let [query-ch (async/chan 10 todo/response->q-results-xf)]
+  (let [session-ch (async/chan 10 todo/handle-response-xf)]
     ;;; Initialize with the session.
-    (async/put! query-ch [nil session])
+    (async/put! session-ch [nil session])
 
     ;;; Connect the response channel to the processing pipeline.
-    (async/pipe todo/response-ch query-ch)
+    (async/pipe todo/response-ch session-ch)
 
     (condp = *test*
-      :sync (test/abuse 1000 20)
-      :async (test/abuse-async 1000 20 10)
-      nil)
-    (async/go-loop []
-      (when-some [result (<! query-ch)]
-        (view/update-view result)
-        (recur)))))
+      :sync (test/abuse session-ch 1000 20)
+      :async (test/abuse-async session-ch 1000 20 10)
+      (async/go-loop []
+        (when-some [s (<! session-ch)]
+          (view/run s)
+          (recur))))))
