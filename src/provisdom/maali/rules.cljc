@@ -11,7 +11,8 @@
     #?(:clj
             [clojure.spec.alpha :as s])
     #?(:cljs [cljs.spec.alpha :as s])
-            #?(:clj [clara.rules.dsl :as dsl]))
+    #?(:clj
+            [clara.rules.dsl :as dsl]))
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -158,9 +159,21 @@
 ;;; TODO - spec rules/queries and validate to avoid obscure exceptions
 
 #?(:clj
+   (defn names-unique
+     [defs]
+     (let [non-unique (->> defs
+                           (group-by first)
+                           (filter (fn [[k v]] (not= 1 (count v))))
+                           (map first)
+                           set)]
+       (if (empty? non-unique)
+         defs
+         (throw (ex-info (str "Non-unique production names: " non-unique) {:names non-unique}))))))
+
+#?(:clj
    (defmacro defrules
      [rules-name & rules]
-     (doseq [rule rules]
+     (doseq [rule (names-unique rules)]
        (if-let [e (s/explain-data ::rule rule)]
          (binding [*out* *err*]
            (println (str "Rule in " rules-name " failed spec"))
@@ -172,7 +185,7 @@
 #?(:clj
    (defmacro defqueries
      [queries-name & queries]
-     (doseq [query queries]
+     (doseq [query (names-unique queries)]
        (if-let [e (s/explain-data ::query query)]
          (binding [*out* *err*]
            (println (str "Query in " queries-name " failed spec"))
@@ -181,26 +194,16 @@
      (let [prods (build-prods queries-name queries dsl/build-query)]
        `(def ~queries-name ~prods))))
 
-#?(:clj
-   (defn names-unique
-     [defs]
-     (let [non-unique (->> defs
-                           (group-by first)
-                           (filter (fn [[k v]] (not= 1 (count v))))
-                           first
-                           set)]
-       (if (empty? non-unique)
-         defs
-         (throw (ex-info "Non-unique production names" {:names non-unique}))))))
+
 
 #?(:clj
    (defmacro defsession
      [name sources options]
      (if (compiling-cljs?)
-       (let [prods (vec (vals (names-unique (apply concat (map @productions sources)))))]
+       (let [prods (vec (vals (apply concat (map @productions sources))))]
          `(def ~name ~(macros/productions->session-assembly-form prods options)))
        (let [sources-and-options (into [`(mapcat vals ~sources)] (mapcat identity options))]
-         `(def ~name (com/mk-session ~sources-and-options))))))
+         `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~options))))))
 
 (defn check-and-spec
   [spec facts]
