@@ -22,32 +22,15 @@
      (boolean
        (when-let [n (find-ns 'cljs.analyzer)]
          (when-let [v (ns-resolve n '*cljs-file*)]
-
            ;; We perform this require only if we are compiling ClojureScript
            ;; so non-ClojureScript users do not need to pull in
            ;; that dependency.
            #_(require 'clara.macros)
            @v)))))
 
-#?(:clj
-   (defmacro rel-ns [k]
-     `(alias ~k (create-ns (symbol (str ns "." (str ~k)))))))
-
 (defn session?
   [x]
   (instance? clara.rules.engine.LocalSession x))
-
-#?(:clj
-   (defn cljs-ns
-     "Returns the ClojureScript namespace being compiled during Clojurescript compilation."
-     []
-     (if (compiling-cljs?)
-       (-> 'cljs.analyzer (find-ns) (ns-resolve '*cljs-ns*) deref)
-       nil)))
-
-#?(:cljs
-   (defprotocol TypeInfo
-     (gettype [this])))
 
 (defn throw-when-not-valid
   [x spec]
@@ -73,32 +56,26 @@
 (s/def ::rule (s/cat :name keyword? :doc (s/? string?) :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
 
 #?(:clj
-   (defmacro deffacttype
-     [name fields & body]
-     `(defrecord ~name
-        ~fields
-        ~'provisdom.maali.rules/TypeInfo
-        (~'gettype [_#] (symbol ~(str (cljs-ns)) ~(str name)))
-        ~@body)))
-
-#?(:clj
    (defonce productions (atom {})))
 
 #?(:clj
-   (defn resolve-spec-form
+   (defn- resolve-spec-form
      [spec-name]
      (loop [s spec-name]
        (let [form (if (compiling-cljs?) (@cljs.spec.alpha/registry-ref s) (s/form spec-name))]
          (if (keyword? form) (recur form) form)))))
 
-(defn flatten-keys
+(defn- flatten-keys
   [keys]
   (mapcat #(cond
              (keyword? %) [%]
              (list? %) (flatten-keys (rest %)))
           keys))
 #?(:clj
-   (defn spec->keys
+   (defn- spec->keys
+     "Resolve a map spec and walk the defining forms to assemble the set of
+      keys used in the spec. Throws if it cannot determine that the spec is
+      defined by s/keys at via the forms."
      [spec-name]
      (let [composite-forms (if (compiling-cljs?)
                              #{'cljs.spec.alpha/or 'cljs.spec.alpha/merge}
@@ -122,7 +99,10 @@
                   {:type (pr-str spec-name) :form (pr-str form)}))))))
 
 #?(:clj
-   (defn add-args-to-constraint
+   (defn- add-args-to-constraint
+     "Since fact types are map specs, use the keys of the associated spec in the
+      constraint fact type to destructure the attributes for use as symbols in
+      the constraint."
      [constraint]
      (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
        (if (or args (not (contains? c :type)))
@@ -133,7 +113,7 @@
      ))
 
 #?(:clj
-   (defn add-args-to-production
+   (defn- add-args-to-production
      [production]
      (let [lhs (:lhs production)]
        (let [elhs (eval lhs)
@@ -147,7 +127,8 @@
          (assoc production :lhs (list 'quote lhs'))))))
 
 #?(:clj
-   (defn build-prods
+   (defn- build-prods
+     "Build productions data form from DSL."
      [defs-name defs build-fn]
      (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
        (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name))
@@ -159,7 +140,8 @@
 ;;; TODO - spec rules/queries and validate to avoid obscure exceptions
 
 #?(:clj
-   (defn names-unique
+   (defn- names-unique
+     "Verifies that names are unique within a group of definitions."
      [defs]
      (let [non-unique (->> defs
                            (group-by first)
@@ -172,10 +154,24 @@
 
 #?(:clj
    (defmacro defrules
+     "Define a group of rules. Each rule is defined in a vector where the first element
+      is a keyword defining the rule name, followed by normal clara-rules syntax, using
+      the spec name as the fact type in constraints. Example:
+        (defrules my-rules
+          [::first-rule
+            [?fact1 <- ::fact-1-spec (= ?attr attr)]
+            =>
+            (println \"Fact 1 attr: \" attr)]
+          [::second-rule
+            ...])
+
+      To use the rules when defining a session, use the full ns-qualified name of the
+      group as a source."
      [rules-name & rules]
      (doseq [rule (names-unique rules)]
        (if-let [e (s/explain-data ::rule rule)]
          (binding [*out* *err*]
+           ;;; Pretty print error info here so it isn't mangled by the browser.
            (println (str "Rule in " rules-name " failed spec"))
            (pprint e)
            (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation (s/explain-str ::rule rule)})))))
@@ -184,10 +180,23 @@
 
 #?(:clj
    (defmacro defqueries
+     "Define a group of queries. Each query is defined in a vector where the first element
+      is a keyword defining the rule name, followed by normal clara-rules syntax, using
+      the spec name as the fact type in constraints. Example:
+        (defqueries my-queries
+          [::first-query
+            [:?attr]
+            [?fact1 <- ::fact-1-spec (= ?attr attr)]]
+          [::second-query
+            ...])
+
+      To use the queries when defining a session, use the full ns-qualified name of the
+      group as a source."
      [queries-name & queries]
      (doseq [query (names-unique queries)]
        (if-let [e (s/explain-data ::query query)]
          (binding [*out* *err*]
+           ;;; Pretty print error info here so it isn't mangled by the browser.
            (println (str "Query in " queries-name " failed spec"))
            (pprint e)
            (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation (s/explain-str ::query query)})))))
@@ -198,56 +207,64 @@
 
 #?(:clj
    (defmacro defsession
-     [name sources options]
-     (if (compiling-cljs?)
-       (let [prods (vec (vals (apply concat (map @productions sources))))]
-         `(def ~name ~(macros/productions->session-assembly-form prods options)))
-       (let [sources-and-options (into [`(mapcat vals ~sources)] (mapcat identity options))]
-         `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~options))))))
+     "Define a rules session, use defrules/defqueries groups as sources. Specify sources
+      as a vector. Accepts any clara-rules session options as map, except for :fact-type-fn,
+      which will always be set to provisdom.maali.rules/spec-type."
+     ([name sources] `(defsession ~name ~sources {}))
+     ([name sources options]
+      (if (compiling-cljs?)
+        (let [prods (vec (vals (apply concat (map @productions sources))))]
+          `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
+        `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~(merge options {:fact-type-fn `spec-type})))))))
 
-(defn check-and-spec
+(defn- check-and-spec
+  "Checks that facts conform to the specified spec, decorates fact
+   maps with metadata containing"
   [spec facts]
   (let [form (@cljs.spec.alpha/registry-ref spec)]
     (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " (pr-str spec)) {:spec spec}))))
   (mapv #(spec-type % spec) facts))
 
 (defn insert
+  "Unconditionally insert facts with type of spec into session.
+   \"spec\" should name a fact spec defined as some combination of
+   s/keys specs."
   [session spec & facts]
   (rules/insert-all session (check-and-spec spec facts)))
 
 (defn insert!
+  "Conditionally insert facts with type of spec into current session context.
+   \"spec\" should name a fact spec defined as some combination of
+   s/keys specs."
   [spec & facts]
   (rules/insert-all! (check-and-spec spec facts)))
 
 (defn insert-unconditional!
+  "Unconditionally insert facts with type of spec into current session context.
+   \"spec\" should name a fact spec defined as some combination of
+   s/keys specs."
   [spec & facts]
   (rules/insert-all-unconditional! (check-and-spec spec facts)))
 
 (defn retract
+  "Retract facts with type of spec into session.
+   \"spec\" should name a fact spec defined as some combination of
+   s/keys specs."
   [session spec f & facts]
   (let [facts (check-and-spec spec (if (fn? f) (f session) (cons f facts)))]
     (apply rules/retract session facts)))
 
 (defn retract!
+  "Retract facts with type of spec into current session context.
+   \"spec\" should name a fact spec defined as some combination of
+   s/keys specs."
   [spec & facts]
   (apply rules/retract! (check-and-spec spec facts)))
 
-(defn upsert
-  [session spec old-fact new-fact]
-  (when (not= old-fact new-fact)
-    (cond-> session
-            old-fact (retract spec old-fact)
-            new-fact (insert spec new-fact))))
-
-(defn upsert-q
-  [session spec query-fn f & args]
-  (let [items (query-fn session)
-        new-items (when f (map #(apply f % args) items))
-        s (if (not-empty items) (apply retract session spec items) session)
-        s' (if (and (not-empty new-items) (not= new-items items)) (apply insert s spec new-items) (apply insert s spec [(apply f nil args)]))]
-    s'))
-
 (defn upsert!
+  "Within the current session context, retracts old-fact (if not nil)
+   and unconditionally inserts a fact created by applying the supplied
+   function and arguments to old-fact."
   [spec old-fact f & args]
   (when old-fact
     (retract! spec old-fact))
@@ -255,15 +272,19 @@
     (insert-unconditional! spec new-fact)))
 
 (defn upsert-seq!
+  "Within the current session context, calls upsert! for each fact
+   in old-fact-seg."
   [spec old-fact-seq f & args]
   (doseq [old-fact old-fact-seq]
     (apply upsert! spec old-fact f args)))
 
 (defn fire-rules
+  "Fires rules for the session."
   [session]
   (rules/fire-rules session))
 
 (defn query
+  "Retrieves results for the specified query from session."
   [session query & params]
   (apply rules/query session query params))
 
@@ -275,6 +296,8 @@
 
 #?(:clj
    (defmacro def-derive
+     "Macros to wrap useful pattern of defining a spec and calling
+      derive on the spec and a \"parent\" spec to create a hierarchy."
      ([child-name parent-name]
       `(def-derive ~child-name ~parent-name ~parent-name))
      ([child-name parent-name spec]

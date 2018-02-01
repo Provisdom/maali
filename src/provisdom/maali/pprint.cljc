@@ -1,3 +1,9 @@
+;;; CLJS version of pprint that preserves namespace-aliases for map prefixes.
+;;; So if you have aliased my.really.long.namespace.name to my-ns, when pprint-ing
+;;; maps, the map prefix will just be #::my-ns rather than the long form. This
+;;; helps with readability, particularly by keeping sane the indentation level
+;;; of nested maps.
+
 (ns provisdom.maali.pprint
   #?(:cljs
      (:require-macros

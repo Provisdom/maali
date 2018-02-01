@@ -1,3 +1,0 @@
-{:require  [provisdom.todo.app]
- :init-fns [provisdom.todo.app/init]
- :compiler-options {:asset-path "js/app.out"}}
