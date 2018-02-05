@@ -261,6 +261,16 @@
   [spec & facts]
   (apply rules/retract! (check-and-spec spec facts)))
 
+(defn upsert
+  "For session, retracts old-fact (if not nil)
+   and unconditionally inserts a fact created by applying the supplied
+   function and arguments to old-fact."
+  [session spec old-fact f & args]
+  (when old-fact
+    (retract session spec old-fact))
+  (when-let [new-fact (apply f old-fact args)]
+    (insert session spec new-fact)))
+
 (defn upsert!
   "Within the current session context, retracts old-fact (if not nil)
    and unconditionally inserts a fact created by applying the supplied
@@ -302,5 +312,6 @@
       `(def-derive ~child-name ~parent-name ~parent-name))
      ([child-name parent-name spec]
       `(do
-         (#?(:clj clojure.spec.alpha/def :cljs cljs.spec.alpha/def) ~child-name ~spec)
+         (#?(:clj clojure.spec.alpha/def :cljs cljs.spec.alpha/def)
+           ~child-name (#?(:clj clojure.spec.alpha/merge :cljs cljs.spec.alpha/merge) ~parent-name ~spec))
          (derive ~child-name ~parent-name)))))
