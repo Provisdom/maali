@@ -47,7 +47,7 @@
   ([x] (-> x meta ::spec-type))
   ([x spec]
    (throw-when-not-valid x spec)
-   (with-meta x {::spec-type spec})))
+   (vary-meta x assoc ::spec-type spec)))
 
 (s/def ::lhs (s/+ vector?))
 (s/def ::rhs (s/+ list?))
