@@ -296,7 +296,8 @@
   (apply rules/query session query params))
 
 (defn query-partial
-  "Retrieves results for a query that where args can be only a partial match."
+  "Retrieves results for a query that where args can be only a partial match.
+   args should be a subset of parameters defined in query."
   [session query & args]
   (let [{:keys [memory rulebase]} (eng/components session)
         query-node (get-in rulebase [:query-nodes query])
@@ -322,3 +323,4 @@
          (#?(:clj clojure.spec.alpha/def :cljs cljs.spec.alpha/def)
            ~child-name (#?(:clj clojure.spec.alpha/merge :cljs cljs.spec.alpha/merge) ~parent-name ~spec))
          (derive ~child-name ~parent-name)))))
+
