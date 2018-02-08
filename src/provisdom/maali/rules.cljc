@@ -302,7 +302,7 @@
         query-node (get-in rulebase [:query-nodes query])
         tokens (mem/get-tokens-all memory query-node)
         args-map (apply hash-map args)
-        matching-tokens (filter (fn [%] (= args-map (select-keys % (keys args-map)))) (map :bindings tokens))]
+        matching-tokens (filter #(= args-map (select-keys % (keys args-map))) (map :bindings tokens))]
     matching-tokens))
 
 (defn query-fn
