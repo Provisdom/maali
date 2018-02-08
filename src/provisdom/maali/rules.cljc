@@ -2,17 +2,14 @@
   (:require [clojure.spec.alpha :as s]
             [cljs.spec.alpha]
             [clara.rules :as rules]
-            [clara.rules.engine]
+            [clara.rules.engine :as eng]
+            [clara.rules.memory :as mem]
             [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]
-    #?(:clj
-            [clara.macros :as macros])
-    #?(:clj
-            [clara.rules.compiler :as com])
-    #?(:clj
-            [clojure.spec.alpha :as s])
+    #?(:clj [clara.macros :as macros])
+    #?(:clj [clara.rules.compiler :as com])
+    #?(:clj [clojure.spec.alpha :as s])
     #?(:cljs [cljs.spec.alpha :as s])
-    #?(:clj
-            [clara.rules.dsl :as dsl]))
+    #?(:clj [clara.rules.dsl :as dsl]))
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -297,6 +294,16 @@
   "Retrieves results for the specified query from session."
   [session query & params]
   (apply rules/query session query params))
+
+(defn query-partial
+  "Retrieves results for a query that where args can be only a partial match."
+  [session query & args]
+  (let [{:keys [memory rulebase]} (eng/components session)
+        query-node (get-in rulebase [:query-nodes query])
+        tokens (mem/get-tokens-all memory query-node)
+        args-map (apply hash-map args)
+        matching-tokens (filter (fn [%] (= args-map (select-keys % (keys args-map)))) (map :bindings tokens))]
+    matching-tokens))
 
 (defn query-fn
   "Returns a function that will apply a query and map the results via map-fn."
