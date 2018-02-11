@@ -106,8 +106,8 @@
          constraint
          (let [args [{:keys (vec (spec->keys type))}
                      #_(com/field-name->accessors-used (eval type) constraints)]]
-           (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))
-     ))
+           (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))))
+
 
 #?(:clj
    (defn- add-args-to-production
@@ -324,3 +324,14 @@
            ~child-name (#?(:clj clojure.spec.alpha/merge :cljs cljs.spec.alpha/merge) ~parent-name ~spec))
          (derive ~child-name ~parent-name)))))
 
+#?(:clj
+   (defmacro check-invariant
+     [response invariant-form]
+     `(if ~invariant-form
+        true
+        (do
+          (println "Invariant violation for request type " (provisdom.maali.rules/spec-type (:provisdom.todo.common/Request ~response)))
+          (println "Invariant: " (quote ~invariant-form))
+          (cljs.pprint/pprint ~response)
+          (println "********")
+          false))))
