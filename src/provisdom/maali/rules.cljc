@@ -207,13 +207,12 @@
      ([name sources] `(defsession ~name ~sources {}))
      ([name sources options]
       (try
-        (binding [*out* *err*]
-          (println "COMPILING-CLJS?" (compiling-cljs?)))
         (if (compiling-cljs?)
           (let [prods (vec (map eval (vals (apply concat (map @productions sources)))))]
             `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
           `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~(merge options {:fact-type-fn `spec-type}))))
         (catch Exception e
+          ; Dump exception to *err* so we get all of the info when using figwheel or boot-cljs
           (binding [*out* *err*]
             (pprint e)
             (throw e)))))))
