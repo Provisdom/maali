@@ -128,10 +128,7 @@
      "Build productions data form from DSL."
      [defs-name defs build-fn]
      (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
-       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name))
-              (into {} (map (fn [[k v] n]
-                              [k (if (compiling-cljs?) (eval v) v)])
-                            prods (range))))
+       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) prods)
        prods)))
 
 ;;; TODO - spec rules/queries and validate to avoid obscure exceptions
@@ -209,10 +206,17 @@
       which will always be set to provisdom.maali.rules/spec-type."
      ([name sources] `(defsession ~name ~sources {}))
      ([name sources options]
-      (if (compiling-cljs?)
-        (let [prods (vec (vals (apply concat (map @productions sources))))]
-          `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
-        `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~(merge options {:fact-type-fn `spec-type})))))))
+      (try
+        (binding [*out* *err*]
+          (println "COMPILING-CLJS?" (compiling-cljs?)))
+        (if (compiling-cljs?)
+          (let [prods (vec (map eval (vals (apply concat (map @productions sources)))))]
+            `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
+          `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~(merge options {:fact-type-fn `spec-type}))))
+        (catch Exception e
+          (binding [*out* *err*]
+            (pprint e)
+            (throw e)))))))
 
 (defn- check-and-spec
   "Checks that facts conform to the specified spec, decorates fact
