@@ -329,12 +329,13 @@
 
 #?(:clj
    (defmacro check-invariant
-     [response invariant-form]
+     [request result invariant-form]
      `(if ~invariant-form
         true
         (do
-          (println "Invariant violation for request type " (provisdom.maali.rules/spec-type (:provisdom.todo.common/Request ~response)))
+          (println "Invariant violation for request type " (provisdom.maali.rules/spec-type ~request))
           (println "Invariant: " (quote ~invariant-form))
-          (cljs.pprint/pprint ~response)
+          (cljs.pprint/pprint ~request)
+          (cljs.pprint/pprint ~result)
           (println "********")
           false))))
