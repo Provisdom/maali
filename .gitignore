@@ -13,7 +13,6 @@ pom.xml.asc
 *.impl
 .idea
 .envrc
-project.clj
 *.iml
 .nrepl-history
 .nrepl-port

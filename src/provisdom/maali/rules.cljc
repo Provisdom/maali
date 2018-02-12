@@ -4,12 +4,18 @@
             [clara.rules :as rules]
             [clara.rules.engine :as eng]
             [clara.rules.memory :as mem]
-            [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]
-    #?(:clj [clara.macros :as macros])
-    #?(:clj [clara.rules.compiler :as com])
-    #?(:clj [clojure.spec.alpha :as s])
+    #?(:clj
+            [clojure.pprint :refer [pprint]]
+       :cljs [cljs.pprint :refer [pprint]])
+    #?(:clj
+            [clara.macros :as macros])
+    #?(:clj
+            [clara.rules.compiler :as com])
+    #?(:clj
+            [clojure.spec.alpha :as s])
     #?(:cljs [cljs.spec.alpha :as s])
-    #?(:clj [clara.rules.dsl :as dsl]))
+    #?(:clj
+            [clara.rules.dsl :as dsl]))
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -329,13 +335,15 @@
 
 #?(:clj
    (defmacro check-invariant
-     [request result invariant-form]
-     `(if ~invariant-form
-        true
-        (do
-          (println "Invariant violation for request type " (provisdom.maali.rules/spec-type ~request))
-          (println "Invariant: " (quote ~invariant-form))
-          (cljs.pprint/pprint ~request)
-          (cljs.pprint/pprint ~result)
-          (println "********")
-          false))))
+     ([request result invariant-form] `(check-invariant ~request ~result ~invariant-form nil))
+     ([request result invariant-form debug-info]
+      `(if ~invariant-form
+         true
+         (do
+           (println "Invariant violation for request type " (provisdom.maali.rules/spec-type ~request))
+           (println "Invariant: " (quote ~invariant-form))
+           (cljs.pprint/pprint ~request)
+           (cljs.pprint/pprint ~result)
+           (when ~debug-info (cljs.pprint/pprint ~debug-info))
+           (println "********")
+           false)))))
