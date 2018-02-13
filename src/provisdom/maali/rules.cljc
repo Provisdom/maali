@@ -130,11 +130,16 @@
          (assoc production :lhs (list 'quote lhs'))))))
 
 #?(:clj
+   (defn- update-name->productions
+     [defs-name prods]
+     (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) prods)))
+
+#?(:clj
    (defn- build-prods
      "Build productions data form from DSL."
      [defs-name defs build-fn]
      (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
-       (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) prods)
+       (update-name->productions defs-name prods)
        prods)))
 
 ;;; TODO - spec rules/queries and validate to avoid obscure exceptions
@@ -205,18 +210,24 @@
 
 
 
+;;; TODO - make sure this works in CLJ too!
 #?(:clj
    (defmacro defsession
      "Define a rules session, use defrules/defqueries groups as sources. Specify sources
-      as a vector. Accepts any clara-rules session options as map, except for :fact-type-fn,
+      as a vector. Sources must be fully-qualified symbols which refer to productions grouped
+      by defrules, defqueries, or defsession.
+
+      Accepts any clara-rules session options as map, except for :fact-type-fn,
       which will always be set to provisdom.maali.rules/spec-type."
      ([name sources] `(defsession ~name ~sources {}))
      ([name sources options]
       (try
-        (if (compiling-cljs?)
-          (let [prods (vec (map eval (vals (apply concat (map @productions sources)))))]
-            `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
-          `(def ~name (com/mk-session* (com/add-production-load-order (mapcat vals ~sources)) ~(merge options {:fact-type-fn `spec-type}))))
+        (let [prods (vec (apply concat (map @productions sources)))]
+          (update-name->productions name prods)
+          (if (compiling-cljs?)
+            (let [prods (set (map eval (vals prods)))]
+              `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
+            `(def ~name (com/mk-session* (com/add-production-load-order (set (mapcat vals ~prods))) ~(merge options {:fact-type-fn `spec-type})))))
         (catch Exception e
           ; Dump exception to *err* so we get all of the info when using figwheel or boot-cljs
           (binding [*out* *err*]
