@@ -21,3 +21,9 @@ But the swan still has a few white feathers left at the end of its wings to remi
 
 # Examples
 * [TODOMVC](https://github.com/sparkofreason/maali-todomvc)
+
+## License
+
+Copyright © 2018 Provisdom Corp.
+
+Distributed under the MIT License.
