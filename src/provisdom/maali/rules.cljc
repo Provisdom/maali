@@ -55,7 +55,7 @@
 (s/def ::lhs (s/+ vector?))
 (s/def ::rhs (s/+ list?))
 (s/def ::params (s/coll-of keyword? :type vector?))
-(s/def ::query (s/cat :name keyword? :params ::params :lhs ::lhs))
+(s/def ::query (s/cat :name keyword? :doc (s/? string?) :params ::params :lhs ::lhs))
 (s/def ::rule (s/cat :name keyword? :doc (s/? string?) :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
 
 #?(:clj
@@ -227,7 +227,7 @@
           (if (compiling-cljs?)
             (let [prods (set (map eval (vals prods)))]
               `(def ~name ~(macros/productions->session-assembly-form prods (merge options {:fact-type-fn `spec-type}))))
-            `(def ~name (com/mk-session* (com/add-production-load-order (set (mapcat vals ~prods))) ~(merge options {:fact-type-fn `spec-type})))))
+            `(def ~name (com/mk-session* (com/add-production-load-order ~(mapv second prods)) ~(merge options {:fact-type-fn `spec-type})))))
         (catch Exception e
           ; Dump exception to *err* so we get all of the info when using figwheel or boot-cljs
           (binding [*out* *err*]
