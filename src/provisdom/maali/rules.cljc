@@ -15,7 +15,8 @@
             [clojure.spec.alpha :as s])
     #?(:cljs [cljs.spec.alpha :as s])
     #?(:clj
-            [clara.rules.dsl :as dsl]))
+            [clara.rules.dsl :as dsl])
+            [cljs.analyzer :as ana])
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -222,7 +223,12 @@
      ([name sources] `(defsession ~name ~sources {}))
      ([name sources options]
       (try
-        (let [prods (vec (apply concat (map @productions sources)))]
+        (let [qualified-sources (map (fn [x]
+                                       (if (compiling-cljs?)
+                                         (ana/resolve-symbol x)
+                                         (resolve x)))
+                                     sources)
+              prods (vec (apply concat (map @productions qualified-sources)))]
           (update-name->productions name prods)
           (if (compiling-cljs?)
             (let [prods (set (map eval (vals prods)))]

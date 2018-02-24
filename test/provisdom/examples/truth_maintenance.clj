@@ -1,13 +1,16 @@
 (ns provisdom.examples.truth-maintenance
   (:require [clojure.spec.alpha :as s]
             [provisdom.maali.rules :refer [defrules defqueries defsession def-derive] :as rules]
-            [clara.rules.accumulators :as acc]))
+            [clara.rules.accumulators :as acc]
+            [clojure.pprint :refer [pprint]]))
 
+;;; Attribute specs
 (s/def ::location string?)
 (s/def ::temperature number?)
 (s/def ::high ::temperature)
 (s/def ::low ::temperature)
 
+;;; Fact-type specs
 (s/def ::Temperature (s/keys :req [::temperature ::location]))
 (s/def ::LocalTemperatureRecords (s/keys :req [::high ::low ::location]))
 (s/def ::Cold (s/keys :req [::temperature]))
@@ -62,13 +65,18 @@
                                           {::temperature 90 ::location "LHR"})
                             rules/fire-rules)]
 
-    (println "Initial cold temperatures: "
-             (rules/query initial-session ::cold-facts))
-    (println "Initial local temperature records: "
-             (rules/query initial-session ::records-facts))
-    (println "Initial locations that have never been below 0: "
-             (rules/query initial-session ::always-over-zero-facts))
-    (println "")
+    (println "Initial cold temperatures: ")
+    (pprint (rules/query initial-session ::cold-facts))
+    (newline)
+
+    (println "Initial local temperature records: ")
+    (pprint (rules/query initial-session ::records-facts))
+    (newline)
+
+    (println "Initial locations that have never been below 0: ")
+    (pprint (rules/query initial-session ::always-over-zero-facts))
+    (newline)
+
     (println "Now add a temperature of -5 to LHR and a temperature of 115 to MCI")
 
     (let [with-mods-session (-> initial-session
@@ -76,22 +84,30 @@
                                              {::temperature -5 ::location "LHR"}
                                              {::temperature 115 ::location "MCI"})
                                 rules/fire-rules)]
-      (println "New cold temperatures: "
-               (rules/query with-mods-session ::cold-facts))
-      (println "New local temperature records: "
-               (rules/query with-mods-session ::records-facts))
-      (println "New locations that have never been below 0: "
-               (rules/query with-mods-session ::always-over-zero-facts))
+      (println "New cold temperatures: ")
+      (pprint (rules/query with-mods-session ::cold-facts))
+      (newline)
+
+      (println "New local temperature records: ")
+      (pprint (rules/query with-mods-session ::records-facts))
+      (newline)
+
+      (println "New locations that have never been below 0: ")
+      (pprint (rules/query with-mods-session ::always-over-zero-facts))
 
       (let [with-retracted-session (-> with-mods-session
                                        (rules/retract ::Temperature {::temperature -5 ::location "LHR"})
                                        rules/fire-rules)]
 
-        (println "")
+        (newline)
         (println "Now we retract the temperature of -5 at LHR")
-        (println "Cold temperatures with this retraction: "
-                 (rules/query with-retracted-session ::cold-facts))
-        (println "Local temperature records with this retraction: "
-                 (rules/query with-retracted-session ::records-facts))
-        (println "Locations that have never been below zero with this retraction: "
-                 (rules/query with-retracted-session ::always-over-zero-facts))))))
+        (println "Cold temperatures with this retraction: ")
+        (pprint (rules/query with-retracted-session ::cold-facts))
+        (newline)
+
+        (println "Local temperature records with this retraction: ")
+        (pprint (rules/query with-retracted-session ::records-facts))
+        (newline)
+
+        (println "Locations that have never been below zero with this retraction: ")
+        (pprint (rules/query with-retracted-session ::always-over-zero-facts))))))
