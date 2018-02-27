@@ -1,22 +1,16 @@
 (ns provisdom.maali.rules
-  (:require [clojure.spec.alpha :as s]
-            [cljs.spec.alpha]
+  (:require [cljs.spec.alpha]
             [clara.rules :as rules]
             [clara.rules.engine :as eng]
             [clara.rules.memory :as mem]
-    #?(:clj
-            [clojure.pprint :refer [pprint]]
+    #?(:clj [clojure.pprint :refer [pprint]]
        :cljs [cljs.pprint :refer [pprint]])
-    #?(:clj
-            [clara.macros :as macros])
-    #?(:clj
-            [clara.rules.compiler :as com])
-    #?(:clj
-            [clojure.spec.alpha :as s])
-    #?(:cljs [cljs.spec.alpha :as s])
-    #?(:clj
-            [clara.rules.dsl :as dsl])
-            [cljs.analyzer :as ana])
+    #?(:clj [clara.macros :as macros])
+    #?(:clj [clara.rules.compiler :as com])
+    #?(:clj [clojure.spec.alpha :as s])
+    #?(:cljs [clojure.spec.alpha :as s])
+    #?(:clj [clara.rules.dsl :as dsl])
+      [cljs.analyzer :as ana])
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -108,27 +102,32 @@
       constraint fact type to destructure the attributes for use as symbols in
       the constraint."
      [constraint]
-     (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
-       (if (or args (not (contains? c :type)))
-         constraint
-         (let [args [{:keys (vec (spec->keys type))}
-                     #_(com/field-name->accessors-used (eval type) constraints)]]
-           (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args))))))
+     (if (vector? constraint)
+       (let [[op & cs] constraint]
+         (if (#{:and :or :not :exists} op)
+           (into [op] (map add-args-to-constraint cs))))
+       (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
+        (if (or args (not (contains? c :type)))
+          constraint
+          (let [args [{:keys (vec (spec->keys type))}
+                      #_(com/field-name->accessors-used (eval type) constraints)]]
+            (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args)))))))
 
+#?(:clj
+     (defn- add-args-to-lhs
+       [lhs]
+       (let [elhs (eval lhs)
+             lhs' (vec
+                    (for [constraint elhs]
+                      (add-args-to-constraint constraint)))]
+         lhs')))
 
 #?(:clj
    (defn- add-args-to-production
      [production]
-     (let [lhs (:lhs production)]
-       (let [elhs (eval lhs)
-             lhs' (vec
-                    (for [constraint elhs]
-                      (if (vector? constraint)
-                        (let [[op & cs] constraint]
-                          (if (#{:and :or :not} op)
-                            (into [op] (map add-args-to-constraint cs))))
-                        (add-args-to-constraint constraint))))]
-         (assoc production :lhs (list 'quote lhs'))))))
+     (let [lhs (add-args-to-lhs (:lhs production))]
+       (assoc production :lhs (list 'quote lhs)))))
+
 
 #?(:clj
    (defn- update-name->productions
@@ -226,9 +225,13 @@
         (let [qualified-sources (map (fn [x]
                                        (if (compiling-cljs?)
                                          (ana/resolve-symbol x)
-                                         (resolve x)))
+                                         (let [v (resolve x)
+                                               m (meta v)
+                                               n (clojure.core/name (:name m))
+                                               ns (clojure.core/name (ns-name (:ns m)))]
+                                           (symbol ns n))))
                                      sources)
-              prods (vec (apply concat (map @productions qualified-sources)))]
+              prods (set (apply concat (map @productions qualified-sources)))]
           (update-name->productions name prods)
           (if (compiling-cljs?)
             (let [prods (set (map eval (vals prods)))]
@@ -289,10 +292,11 @@
    and unconditionally inserts a fact created by applying the supplied
    function and arguments to old-fact."
   [session spec old-fact f & args]
-  (when old-fact
-    (retract session spec old-fact))
-  (when-let [new-fact (apply f old-fact args)]
-    (insert session spec new-fact)))
+  (let [s (if old-fact
+            (retract session spec old-fact)
+            session)]
+    (when-let [new-fact (apply f old-fact args)]
+      (insert s spec new-fact))))
 
 (defn upsert!
   "Within the current session context, retracts old-fact (if not nil)
