@@ -76,15 +76,6 @@
   [request]
   ((response-fn request) (rules/spec-type {::Request request} ::Cancellation)))
 
-;;; Some query boilerplate functions
-(defn query-many
-  [map-fn session query & args]
-  (mapv map-fn (apply rules/query session query args)))
-
-(defn query-one
-  [map-fn session query & args]
-  (-> (apply rules/query session query args) first map-fn))
-
 ;;; Common rules for request/response logic.
 (defrules rules
   [::cancel-request!

@@ -336,6 +336,15 @@
         matching-tokens (filter #(= args-map (select-keys % (keys args-map))) (map :bindings tokens))]
     matching-tokens))
 
+;;; Some query boilerplate functions
+(defn query-many
+  [map-fn session query & args]
+  (mapv map-fn (apply rules/query session query args)))
+
+(defn query-one
+  [map-fn session query & args]
+  (-> (apply rules/query session query args) first map-fn))
+
 (defn query-fn
   "Returns a function that will apply a query and map the results via map-fn."
   [query map-fn & args]
