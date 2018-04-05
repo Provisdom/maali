@@ -3,5 +3,5 @@
                  [org.clojure/clojurescript "1.9.946"]
                  [org.clojure/spec.alpha "0.1.143"]
                  [org.clojure/test.check "0.9.0"]
-                 [com.cerner/clara-rules "0.18.0-SNAPSHOT"]]
+                 [com.cerner/clara-rules "0.18.0"]]
   :source-paths ["src" "test"])
