@@ -20,6 +20,7 @@ But the swan still has a few white feathers left at the end of its wings to remi
  </table>
 
 # Examples
+* [Tic-Tac-Toe](https://github.com/Provisdom/maali-simple)
 * [TODOMVC](https://github.com/sparkofreason/maali-todomvc)
 
 ## License
