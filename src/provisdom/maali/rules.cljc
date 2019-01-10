@@ -96,37 +96,6 @@
   [session q]
   (d/q q (:db session)))
 
-(defn- check-and-spec
-  "Checks that facts conform to the specified spec, decorates fact
-   maps with metadata containing"
-  [spec facts]
-  (let [form (@cljs.spec.alpha/registry-ref spec)]
-    (when (= ::s/unknown form) (throw (ex-info (str "Unknown spec " (pr-str spec)) {:spec spec}))))
-  (mapv #(spec-type % spec) facts))
-
-#_(defn upsert
-    "For session, retracts old-fact (if not nil)
-   and unconditionally inserts a fact created by applying the supplied
-   function and arguments to old-fact."
-    [session spec old-fact f & args]
-    (let [s (if old-fact
-              (retract session spec old-fact)
-              session)]
-      (when-let [new-fact (apply f old-fact args)]
-        (insert s spec new-fact))))
-
-#?(:clj
-   (defmacro def-derive
-     "Macros to wrap useful pattern of defining a spec and calling
-      derive on the spec and a \"parent\" spec to create a hierarchy."
-     ([child-name parent-name]
-      `(def-derive ~child-name ~parent-name ~parent-name))
-     ([child-name parent-name spec]
-      `(do
-         (#?(:clj clojure.spec.alpha/def :cljs cljs.spec.alpha/def)
-           ~child-name (#?(:clj clojure.spec.alpha/merge :cljs cljs.spec.alpha/merge) ~parent-name ~spec))
-         (derive ~child-name ~parent-name)))))
-
 #?(:clj
    (defmacro check-invariant
      ([request result invariant-form] `(check-invariant ~request ~result ~invariant-form nil))
