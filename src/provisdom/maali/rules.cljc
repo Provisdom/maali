@@ -56,6 +56,7 @@
                     retracted-bindings (select-keys bindings retracted-results)]
                 [name (assoc rule :pending-bindings added-bindings
                                   :retracted-bindings retracted-bindings)])))
+
        (into {})))
 
 (defn transact

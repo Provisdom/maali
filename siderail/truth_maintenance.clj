@@ -38,13 +38,11 @@
                                         [?e ::temperature ?temperature]
                                         [(< ?temperature 30)]]
                                :rhs-fn (fn [temp]
-                                         [{:type         ::Cold
-                                           ::temperature temp}])}})
+                                         [{::cold-temperature temp}])}})
 (def queries
   {::cold-facts             '[:find ?temperature
                               :where
-                              [?e :type ::Cold]
-                              [?e ::temperature ?temperature]]
+                              [?e ::cold-temperature ?temperature]]
    ::records-facts          '[:find ?high ?low ?loc
                               :where
                               [?e ::high ?high]
