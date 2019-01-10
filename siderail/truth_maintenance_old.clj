@@ -1,8 +1,6 @@
-(ns provisdom.examples.truth-maintenance
-  (:require [clojure.spec.alpha :as s]
-            [provisdom.maali.rules :refer [defrules defqueries defsession def-derive] :as rules]
-            [clara.rules.accumulators :as acc]
-            [clojure.pprint :refer [pprint]]))
+(require '[clojure.spec.alpha :as s]
+         '[provisdom.maali.rules :refer [defrules create-session def-derive] :as rules]
+         '[clojure.pprint :refer [pprint]])
 
 ;;; Attribute specs
 (s/def ::location string?)
@@ -38,20 +36,20 @@
 
 
 (defqueries queries
-  [::cold-facts
-   "Query for Cold facts"
-   []
-   [::Cold (= ?temperature temperature)]]
+            [::cold-facts
+             "Query for Cold facts"
+             []
+             [::Cold (= ?temperature temperature)]]
 
-  [::records-facts
-   "Query for LocalTemperatureRecord facts"
-   []
-   [::LocalTemperatureRecords (= ?high high) (= ?low low) (= ?loc location)]]
+            [::records-facts
+             "Query for LocalTemperatureRecord facts"
+             []
+             [::LocalTemperatureRecords (= ?high high) (= ?low low) (= ?loc location)]]
 
-  [::always-over-zero-facts
-   "Query for AlwaysOverZeroLocation facts"
-   []
-   [::AlwaysOverZeroLocation (= ?loc location)]])
+            [::always-over-zero-facts
+             "Query for AlwaysOverZeroLocation facts"
+             []
+             [::AlwaysOverZeroLocation (= ?loc location)]])
 
 (defsession initial-session [provisdom.examples.truth-maintenance/rules
                              provisdom.examples.truth-maintenance/queries])
@@ -81,8 +79,8 @@
 
     (let [with-mods-session (-> initial-session
                                 (rules/insert ::Temperature
-                                             {::temperature -5 ::location "LHR"}
-                                             {::temperature 115 ::location "MCI"})
+                                              {::temperature -5 ::location "LHR"}
+                                              {::temperature 115 ::location "MCI"})
                                 rules/fire-rules)]
       (println "New cold temperatures: ")
       (pprint (rules/query with-mods-session ::cold-facts))
