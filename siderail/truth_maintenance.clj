@@ -1,5 +1,5 @@
 (require '[clojure.spec.alpha :as s]
-         '[provisdom.maali.rules :refer [create-session def-derive] :as rules]
+         '[provisdom.maali.rules :as rules]
          '[clojure.pprint :refer [pprint]])
 
 
@@ -53,8 +53,8 @@
                               [?e ::always-over-zero true]
                               [?e ::location ?loc]]})
 
-(def initial-session (create-session {::location {:db/unique :db.unique/identity}
-                                      ::temperature {:db/cardinality :db.cardinality/many}}
+(def initial-session (rules/create-session {::location {:db/unique :db.unique/identity}
+                                            ::temperature {:db/cardinality :db.cardinality/many}}
                                      rules))
 
 (defn run-examples []

@@ -1,34 +1,10 @@
 (ns provisdom.maali.rules
-  (:require [cljs.spec.alpha]
+  (:require [clojure.spec.alpha :as s]
             [datascript.core :as d]
             [datascript.parser :as dp]
             [clojure.set :as set]
             #?(:clj  [clojure.pprint :refer [pprint]]
-               :cljs [cljs.pprint :refer [pprint]])
-            #?(:clj [clojure.spec.alpha :as s])
-            #?(:cljs [clojure.spec.alpha :as s])))
-
-(defn throw-when-not-valid
-  [x spec]
-  (when-let [e (s/explain-data spec x)]
-    #?(:cljs
-       (do
-         (enable-console-print!)
-         (.error js/console (str "Data failed spec " (pr-str spec)))
-         (pprint e)))
-    (throw (ex-info (str "Data failed spec " (pr-str spec)) {:fact x :explanation (s/explain-str spec x)})))
-  x)
-
-(defn spec-type
-  ([x] (-> x meta ::spec-type))
-  ([x spec]
-   (throw-when-not-valid x spec)
-   (vary-meta x assoc ::spec-type spec)))
-
-(s/def ::lhs (s/+ vector?))
-(s/def ::rhs (s/+ list?))
-(s/def ::params (s/coll-of keyword? :type vector?))
-(s/def ::rule (s/cat :name keyword? :doc (s/? string?) :opts (s/? map?) :lhs ::lhs :sep #{'=>} :rhs ::rhs))
+               :cljs [cljs.pprint :refer [pprint]])))
 
 (defn create-session
   [schema & ruleses]
