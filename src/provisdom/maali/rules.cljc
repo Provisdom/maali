@@ -6,13 +6,108 @@
             #?(:clj  [clojure.pprint :refer [pprint]]
                :cljs [cljs.pprint :refer [pprint]])))
 
+(defrecord Session [rules db]
+  #?@(
+      :cljs
+      [Fn
+       IFn
+       (-invoke [_ q]
+                (d/q q db))
+       (-invoke [_ q b]
+                (d/q q db b))
+       (-invoke [_ q b c]
+                (d/q q db b c))
+       (-invoke [_ q b c d]
+                (d/q q db b c d))
+       (-invoke [_ q b c d e]
+                (d/q q db b c d e))
+       (-invoke [_ q b c d e f]
+                (d/q q db b c d e f))
+       (-invoke [_ q b c d e f g]
+                (d/q q db b c d e f g))
+       (-invoke [_ q b c d e f g h]
+                (d/q q db b c d e f g h))
+       (-invoke [_ q b c d e f g h i]
+                (d/q q db b c d e f g h i))
+       (-invoke [_ q b c d e f g h i j]
+                (d/q q db b c d e f g h i j))
+       (-invoke [_ q b c d e f g h i j k]
+                (d/q q db b c d e f g h i j k))
+       (-invoke [_ q b c d e f g h i j k l]
+                (d/q q db b c d e f g h i j k l))
+       (-invoke [_ q b c d e f g h i j k l m]
+                (d/q q db b c d e f g h i j k l m))
+       (-invoke [_ q b c d e f g h i j k l m n]
+                (d/q q db b c d e f g h i j k l m n))
+       (-invoke [_ q b c d e f g h i j k l m n o]
+                (d/q q db b c d e f g h i j k l m n o))
+       (-invoke [_ q b c d e f g h i j k l m n o p]
+                (d/q q db b c d e f g h i j k l m n o p))
+       (-invoke [_ q b c d e f g h i j k l m n o p q]
+                (d/q q db b c d e f g h i j k l m n o p q))
+       (-invoke [_ q b c d e f g h i j k l m n o p q r]
+                (d/q q db b c d e f g h i j k l m n o p q r))
+       (-invoke [_ q b c d e f g h i j k l m n o p q r s]
+                (d/q q db b c d e f g h i j k l m n o p q r s))
+       (-invoke [_ q b c d e f g h i j k l m n o p q r s t]
+                (d/q q db b c d e f g h i j k l m n o p q r s t))
+       (-invoke [_ q b c d e f g h i j k l m n o p q r s t rest]
+                (apply d/q q db b c d e f g h i j k l m n o p q r s t rest))]
+      :clj
+      [clojure.lang.Fn
+       clojure.lang.IFn
+       (invoke [_ q]
+         (d/q q db))
+       (invoke [_ q b]
+         (d/q q db b))
+       (invoke [_ q b c]
+         (d/q q db b c))
+       (invoke [_ q b c d]
+         (d/q q db b c d))
+       (invoke [_ q b c d e]
+         (d/q q db b c d e))
+       (invoke [_ q b c d e f]
+         (d/q q db b c d e f))
+       (invoke [_ q b c d e f g]
+         (d/q q db b c d e f g))
+       (invoke [_ q b c d e f g h]
+         (d/q q db b c d e f g h))
+       (invoke [_ q b c d e f g h i]
+         (d/q q db b c d e f g h i))
+       (invoke [_ q b c d e f g h i j]
+         (d/q q db b c d e f g h i j))
+       (invoke [_ q b c d e f g h i j k]
+         (d/q q db b c d e f g h i j k))
+       (invoke [_ q b c d e f g h i j k l]
+         (d/q q db b c d e f g h i j k l))
+       (invoke [_ q b c d e f g h i j k l m]
+         (d/q q db b c d e f g h i j k l m))
+       (invoke [_ q b c d e f g h i j k l m n]
+         (d/q q db b c d e f g h i j k l m n))
+       (invoke [_ q b c d e f g h i j k l m n o]
+         (d/q q db b c d e f g h i j k l m n o))
+       (invoke [_ q b c d e f g h i j k l m n o p]
+         (d/q q db b c d e f g h i j k l m n o p))
+       (invoke [_ q b c d e f g h i j k l m n o p q]
+         (d/q q db b c d e f g h i j k l m n o p q))
+       (invoke [_ q b c d e f g h i j k l m n o p q r]
+         (d/q q db b c d e f g h i j k l m n o p q r))
+       (invoke [_ q b c d e f g h i j k l m n o p q r s]
+         (d/q q db b c d e f g h i j k l m n o p q r s))
+       (invoke [_ q b c d e f g h i j k l m n o p q r s t]
+         (d/q q db b c d e f g h i j k l m n o p q r s t))
+       (invoke [_ q b c d e f g h i j k l m n o p q r s t rest]
+         (apply d/q q db b c d e f g h i j k l m n o p q r s t rest))]))
+
+
 (defn create-session
   [schema & ruleses]
-  {:rules (->> ruleses
-               (apply merge)
-               (map (fn [[name rule]] [name (assoc rule :pending-bindings {} :retracted-bindings {})]))
-               (into {}))
-   :db    (d/empty-db schema)})
+  (map->Session
+    {:rules (->> ruleses
+                 (apply merge)
+                 (map (fn [[name rule]] [name (assoc rule :pending-bindings {} :retracted-bindings {})]))
+                 (into {}))
+     :db    (d/empty-db schema)}))
 
 (defn update-bindings
   [db rules]
@@ -30,8 +125,6 @@
                                                     (vector b))))
                                         (into {}))
                     retracted-bindings (select-keys bindings retracted-results)]
-                (println "++++" added-results)
-                (println "----" retracted-results)
                 [name (assoc rule :pending-bindings added-bindings
                                   :retracted-bindings retracted-bindings)])))
 
@@ -44,8 +137,8 @@
     (if (every? (fn [[_ rule]] (and (-> rule :pending-bindings empty?)
                                     (-> rule :retracted-bindings empty?)))
                 rules)
-      {:rules rules
-       :db    db}
+      (assoc session :rules rules
+                     :db db)
       (let [[rules' db'] (reduce (fn [[rules db] [name rule]]
                                    (let [tx-data (->> rule
                                                       :retracted-bindings
@@ -62,7 +155,6 @@
                                      (let [[bindings db'] (reduce (fn [[bindings db] [binding tx-data]]
                                                                     (try
                                                                       (let [g (group-by #(or (:unconditional? %) (= :db/add! (first %))) tx-data)
-                                                                            _ (println (g false) (g true))
                                                                             cond-tx-data (vec (g false))
                                                                             uncond-tx-data (mapv (fn [d]
                                                                                                    (cond
@@ -80,10 +172,6 @@
                                         db']))
                                    [{} db'] rules')]
         (recur db'' (update-bindings db'' rules''))))))
-
-(defn query
-  [session q]
-  (d/q q (:db session)))
 
 #?(:clj
    (defmacro check-invariant

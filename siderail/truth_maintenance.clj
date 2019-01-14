@@ -69,15 +69,15 @@
     (println initial-session)
 
     (println "Initial cold temperatures: ")
-    (pprint (rules/query initial-session (queries ::cold-facts)))
+    (pprint (initial-session (queries ::cold-facts)))
     (newline)
 
     (println "Initial local temperature records: ")
-    (pprint (rules/query initial-session (queries ::records-facts)))
+    (pprint (initial-session (queries ::records-facts)))
     (newline)
 
     (println "Initial locations that have never been below 0: ")
-    (pprint (rules/query initial-session (queries ::always-over-zero-facts)))
+    (pprint (initial-session (queries ::always-over-zero-facts)))
     (newline)
 
     (println "Now add a temperature of -5 to LHR and a temperature of 115 to MCI")
@@ -88,33 +88,31 @@
                                        [{::temperature -5 ::location "LHR"}
                                         {::temperature 115 ::location "MCI"}])))]
       (println "New cold temperatures: ")
-      (pprint (rules/query with-mods-session (queries ::cold-facts)))
+      (pprint (with-mods-session (queries ::cold-facts)))
       (newline)
 
       (println "New local temperature records: ")
-      (pprint (rules/query with-mods-session (queries ::records-facts)))
+      (pprint (with-mods-session (queries ::records-facts)))
       (newline)
 
       (println "New locations that have never been below 0: ")
-      (pprint (rules/query with-mods-session (queries ::always-over-zero-facts)))
+      (pprint (with-mods-session (queries ::always-over-zero-facts)))
 
       (let [with-retracted-session (-> with-mods-session
-                                       (rules/transact (let [e (-> with-mods-session
-                                                                   (rules/query '[:find ?e
-                                                                                  :where
-                                                                                  [?e ::location "LHR"]])
-                                                                   ffirst)]
+                                       (rules/transact (let [e (ffirst (with-mods-session '[:find ?e
+                                                                                            :where
+                                                                                            [?e ::location "LHR"]]))]
                                                          [[:db/retract e ::temperature -5]])))]
 
         (newline)
         (println "Now we retract the temperature of -5 at LHR")
         (println "Cold temperatures with this retraction: ")
-        (pprint (rules/query with-retracted-session (queries ::cold-facts)))
+        (pprint (with-retracted-session (queries ::cold-facts)))
         (newline)
 
         (println "Local temperature records with this retraction: ")
-        (pprint (rules/query with-retracted-session (queries ::records-facts)))
+        (pprint (with-retracted-session (queries ::records-facts)))
         (newline)
 
         (println "Locations that have never been below zero with this retraction: ")
-        (pprint (rules/query with-retracted-session (queries ::always-over-zero-facts)))))))
+        (pprint (with-retracted-session (queries ::always-over-zero-facts)))))))
