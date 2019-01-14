@@ -1,8 +1,4 @@
-(ns provisdom.maali.common
-  (:require [clojure.spec.alpha :as s]
-            [clojure.test.check.generators]
-            [provisdom.maali.rules :as rules]
-            [#?(:clj clojure.pprint :cljs cljs.pprint) :refer [pprint]]))
+(ns provisdom.maali.common)
 
 ;;; Common rules for request/response logic.
 (def rules

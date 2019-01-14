@@ -30,6 +30,8 @@
                                                     (vector b))))
                                         (into {}))
                     retracted-bindings (select-keys bindings retracted-results)]
+                (println "++++" added-results)
+                (println "----" retracted-results)
                 [name (assoc rule :pending-bindings added-bindings
                                   :retracted-bindings retracted-bindings)])))
 
@@ -58,8 +60,19 @@
                                  [{} db] rules)
             [rules'' db''] (reduce (fn [[rules db] [name rule]]
                                      (let [[bindings db'] (reduce (fn [[bindings db] [binding tx-data]]
-                                                                    (let [{:keys [tx-data db-after]} (d/with db (vec tx-data))]
-                                                                      [(assoc bindings binding tx-data) db-after]))
+                                                                    (try
+                                                                      (let [g (group-by #(or (:unconditional? %) (= :db/add! (first %))) tx-data)
+                                                                            _ (println (g false) (g true))
+                                                                            cond-tx-data (vec (g false))
+                                                                            uncond-tx-data (mapv (fn [d]
+                                                                                                   (cond
+                                                                                                     (map? d) (dissoc d :unconditional?)
+                                                                                                     (vector? d) (assoc d 0 :db/add)))
+                                                                                                 (g true))
+                                                                            {:keys [tx-data db-after]} (d/with (d/db-with db uncond-tx-data) cond-tx-data)]
+                                                                        [(assoc bindings binding tx-data) db-after])
+                                                                      (catch Exception ex
+                                                                        (throw (ex-info "TX FOO" {:name name :bindings bindings :tx-data tx-data :ex ex})))))
                                                                   [{} db] (:pending-bindings rule))]
                                        [(assoc rules name (-> rule
                                                               (update :bindings merge bindings)
