@@ -32,16 +32,28 @@
            (insert-unconditional! (assoc ?num'' :b (:b ?num')))))
 
 (defquery reqq [] [?req <- Req])
-(let [s (mk-session 'foo)
-      s' (-> s
-           (insert (->Num 1 true))
-           (insert (->Num 2 false))
-           (fire-rules))
-      rq (-> s' (query reqq) first :?req)
-      _ (println rq)
-      s'' (-> s'
-              #_(retract (->Num 1 true))
-              #_(insert (->Num 1 :foo))
-              (insert (->Res rq (update (:num rq) :b not)))
-              (fire-rules))]
-  s'')
+#_(let [s (mk-session 'foo)
+        s' (-> s
+             (insert (->Num 1 true))
+             (insert (->Num 2 false))
+             (fire-rules))
+        rq (-> s' (query reqq) first :?req)
+        _ (println rq)
+        s'' (-> s'
+                #_(retract (->Num 1 true))
+                #_(insert (->Num 1 :foo))
+                (insert (->Res rq (update (:num rq) :b not)))
+                (fire-rules))]
+    s'')
+
+(defrecord Thing [status])
+
+(defrule count-on
+  [?n <- (acc/count) :from [Thing (= status :on)]]
+  =>
+  (println "On " ?n))
+
+(def s (-> (mk-session 'foo)
+           (insert (->Thing :on)
+                   (->Thing :off))
+           fire-rules))
