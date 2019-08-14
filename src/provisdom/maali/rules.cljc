@@ -138,7 +138,7 @@
    (defn- build-prods
      "Build productions data form from DSL."
      [defs-name defs opts build-fn]
-     (println opts)
+     ; If opts exist, apply to all rule definitions in the group.
      (let [prods (into {} (map (fn [[name & def]]
                                  (try
                                    [name (add-args-to-production (build-fn name (if opts (cons opts def) def)))]
