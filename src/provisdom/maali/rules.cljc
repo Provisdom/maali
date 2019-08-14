@@ -137,8 +137,18 @@
 #?(:clj
    (defn- build-prods
      "Build productions data form from DSL."
-     [defs-name defs build-fn]
-     (let [prods (into {} (map (fn [[name & def]] [name (add-args-to-production (build-fn name def))])) defs)]
+     [defs-name defs opts build-fn]
+     (println opts)
+     (let [prods (into {} (map (fn [[name & def]]
+                                 (try
+                                   [name (add-args-to-production (build-fn name (if opts (cons opts def) def)))]
+                                   (catch Exception e
+                                     (throw (ex-info "Exception building production"
+                                                     {:name name
+                                                      :opts opts
+                                                      :def def
+                                                      :ex e})))))
+                               defs))]
        (update-name->productions defs-name prods)
        prods)))
 
@@ -173,15 +183,18 @@
       To use the rules when defining a session, use the full ns-qualified name of the
       group as a source."
      [rules-name & rules]
-     (doseq [rule (names-unique rules)]
-       (if-let [e (s/explain-data ::rule rule)]
-         (binding [*out* *err*]
-           ;;; Pretty print error info here so it isn't mangled by the browser.
-           (println (str "Rule in " rules-name " failed spec"))
-           (pprint e)
-           (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation (s/explain-str ::rule rule)})))))
-     (let [prods (build-prods rules-name rules dsl/build-rule)]
-       `(def ~rules-name ~prods))))
+     (let [[opts rules] (if (map? (first rules))
+                          [(first rules) (rest rules)]
+                          [nil rules])]
+       (doseq [rule (names-unique rules)]
+         (if-let [e (s/explain-data ::rule rule)]
+           (binding [*out* *err*]
+             ;;; Pretty print error info here so it isn't mangled by the browser.
+             (println (str "Rule in " rules-name " failed spec"))
+             (pprint e)
+             (throw (ex-info (str "Rule in " rules-name " failed spec") {:explanation (s/explain-str ::rule rule)})))))
+       (let [prods (build-prods rules-name rules opts dsl/build-rule)]
+         `(def ~rules-name ~prods)))))
 
 #?(:clj
    (defmacro defqueries
@@ -205,12 +218,9 @@
            (println (str "Query in " queries-name " failed spec"))
            (pprint e)
            (throw (ex-info (str "Query in " queries-name " failed spec") {:explanation (s/explain-str ::query query)})))))
-     (let [prods (build-prods queries-name queries dsl/build-query)]
+     (let [prods (build-prods queries-name queries nil dsl/build-query)]
        `(def ~queries-name ~prods))))
 
-
-
-;;; TODO - make sure this works in CLJ too!
 #?(:clj
    (defmacro defsession
      "Define a rules session, use defrules/defqueries groups as sources. Specify sources
