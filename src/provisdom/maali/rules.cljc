@@ -136,7 +136,7 @@
 
 #?(:clj
    (defn- build-prods
-     "Build productions data form from DSL."
+     "Build productions data from from DSL."
      [defs-name defs opts build-fn]
      ; If opts exist, apply to all rule definitions in the group.
      (let [prods (into {} (map (fn [[name & def]]
