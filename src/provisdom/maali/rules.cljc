@@ -3,14 +3,14 @@
             [clara.rules :as rules]
             [clara.rules.engine :as eng]
             [clara.rules.memory :as mem]
-    #?(:clj [clojure.pprint :refer [pprint]]
-       :cljs [cljs.pprint :refer [pprint]])
-    #?(:clj [clara.macros :as macros])
-    #?(:clj [clara.rules.compiler :as com])
-    #?(:clj [clojure.spec.alpha :as s])
-    #?(:cljs [clojure.spec.alpha :as s])
-    #?(:clj [clara.rules.dsl :as dsl])
-      [cljs.analyzer :as ana])
+            #?(:clj  [clojure.pprint :refer [pprint]]
+               :cljs [cljs.pprint :refer [pprint]])
+            #?(:clj [clara.macros :as macros])
+            #?(:clj [clara.rules.compiler :as com])
+            #?(:clj [clojure.spec.alpha :as s])
+            #?(:cljs [clojure.spec.alpha :as s])
+            #?(:clj [clara.rules.dsl :as dsl])
+            [cljs.analyzer :as ana])
   #?(:clj
      (:import [clara.rules.engine LocalSession])))
 
@@ -107,20 +107,20 @@
          (if (#{:and :or :not :exists} op)
            (into [op] (map add-args-to-constraint cs))))
        (let [{:keys [type constraints args] :as c} (or (:from constraint) constraint)]
-        (if (or args (not (contains? c :type)))
-          constraint
-          (let [args [{:keys (vec (spec->keys type))}
-                      #_(com/field-name->accessors-used (eval type) constraints)]]
-            (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args)))))))
+         (if (or args (not (contains? c :type)))
+           constraint
+           (let [args [{:keys (vec (spec->keys type))}
+                       #_(com/field-name->accessors-used (eval type) constraints)]]
+             (assoc-in constraint (if (:from constraint) [:from :args] [:args]) args)))))))
 
 #?(:clj
-     (defn- add-args-to-lhs
-       [lhs]
-       (let [elhs (eval lhs)
-             lhs' (vec
-                    (for [constraint elhs]
-                      (add-args-to-constraint constraint)))]
-         lhs')))
+   (defn- add-args-to-lhs
+     [lhs]
+     (let [elhs (eval lhs)
+           lhs' (vec
+                  (for [constraint elhs]
+                    (add-args-to-constraint constraint)))]
+       lhs')))
 
 #?(:clj
    (defn- add-args-to-production
@@ -135,19 +135,51 @@
      (swap! productions assoc (symbol (name (ns-name *ns*)) (name defs-name)) prods)))
 
 #?(:clj
+   (defn- flatulate [x]
+     (filter (complement seqable?)
+             (rest (tree-seq seqable? seq x)))))
+
+#?(:clj
+   (defn- tap-production
+     [name prod]
+     (let [binding-syms (->> (:rhs prod)
+                             flatulate
+                             (filter symbol?)
+                             (filter #(not= % '?response-fn))
+                             (filter #(clojure.string/starts-with? (str %) "?")))]
+       (update prod :rhs (fn [rhs]
+                           (let [[_ [do-sym & forms]] rhs
+                                 binding-map (->> binding-syms
+                                                  (map #(vector (keyword %) %))
+                                                  (into {}))]
+                             (list 'quote
+                                   (->> forms
+                                        (cons (list 'tap> {:tag      :rules
+                                                           :rule     name
+                                                           :bindings binding-map}))
+                                        (cons do-sym)))))))))
+
+#?(:clj
    (defn- build-prods
      "Build productions data from from DSL."
      [defs-name defs opts build-fn]
      ; If opts exist, apply to all rule definitions in the group.
      (let [prods (into {} (map (fn [[name & def]]
                                  (try
-                                   [name (add-args-to-production (build-fn name (if opts (cons opts def) def)))]
+                                   (let [tap? (or (-> def first :tap?) (:tap? opts))
+                                         build-fn (if tap?
+                                                    (fn [name def]
+                                                      #_(pprint (tap-production name (build-fn name def)))
+                                                      (tap-production name (build-fn name def)))
+                                                    build-fn)
+                                         def (if opts (cons opts def) def)]
+                                     [name (add-args-to-production (build-fn name def))])
                                    (catch Exception e
                                      (throw (ex-info "Exception building production"
                                                      {:name name
                                                       :opts opts
-                                                      :def def
-                                                      :ex e})))))
+                                                      :def  def
+                                                      :ex   e})))))
                                defs))]
        (update-name->productions defs-name prods)
        prods)))
