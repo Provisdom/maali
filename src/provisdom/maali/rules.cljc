@@ -169,11 +169,19 @@
                                    (let [tap? (or (-> def first :tap?) (:tap? opts))
                                          build-fn (if tap?
                                                     (fn [name def]
-                                                      #_(pprint (tap-production name (build-fn name def)))
                                                       (tap-production name (build-fn name def)))
                                                     build-fn)
-                                         def (if opts (cons opts def) def)]
-                                     [name (add-args-to-production (build-fn name def))])
+                                         def (if opts
+                                               (if (string? (first def))
+                                                 (->> def
+                                                     rest
+                                                     (cons opts)
+                                                     (cons (first def)))
+                                                 (cons opts def))
+                                               def)
+                                         prod (build-fn name def)]
+                                     #_(pprint def)
+                                     [name (add-args-to-production prod)])
                                    (catch Exception e
                                      (throw (ex-info "Exception building production"
                                                      {:name name
